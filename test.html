@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Prompt Auto-Complete Extension Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        h1 { color: #1976d2; }
+        h2 { color: #424242; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <h1>AI Prompt Auto-Complete Extension Test Page</h1>
+    
+    <div class="instructions">
+        <h3>How to Install & Test the Extension:</h3>
+        <ol>
+            <li>Open Firefox and navigate to <span class="code">about:debugging</span></li>
+            <li>Click "This Firefox" in the left sidebar</li>
+            <li>Click "Load Temporary Add-on" button</li>
+            <li>Navigate to this project folder and select <span class="code">manifest.json</span></li>
+            <li>The extension should now be loaded and active</li>
+        </ol>
+    </div>
+
+    <div class="instructions">
+        <h3>Testing Instructions:</h3>
+        <p><strong>Method 1 - Text Trigger:</strong> Type <span class="code">AI:</span> in any input field below to trigger the prompt dropdown</p>
+        <p><strong>Method 2 - Hotkey:</strong> Focus on any input field and press <span class="code">Ctrl+Shift+P</span> to show the prompt dropdown</p>
+        <p><strong>First time?</strong> You'll need to add prompts via the extension's options page first!</p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Input Fields</h2>
+        
+        <label for="test1">Single-line text input:</label>
+        <input type="text" id="test1" placeholder="Try typing 'AI:' here or press Ctrl+Shift+P">
+        
+        <label for="test2">Email input:</label>
+        <input type="email" id="test2" placeholder="Test the extension here">
+        
+        <label for="test3">Search input:</label>
+        <input type="search" id="test3" placeholder="Search field test">
+        
+        <label for="test4">Textarea:</label>
+        <textarea id="test4" rows="4" placeholder="Multi-line text area - try the AI prompt triggers here"></textarea>
+    </div>
+
+    <div class="test-section">
+        <h2>Extension Features</h2>
+        <ul>
+            <li><strong>Text Trigger:</strong> Type "AI:" in any input to show prompts</li>
+            <li><strong>Hotkey:</strong> Press Ctrl+Shift+P to show prompts</li>
+            <li><strong>Arrow Navigation:</strong> Use ↑/↓ to navigate prompt list</li>
+            <li><strong>Enter to Select:</strong> Press Enter to insert selected prompt</li>
+            <li><strong>Escape to Close:</strong> Press Esc to hide the dropdown</li>
+            <li><strong>Mouse Support:</strong> Click prompts to select them</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>Add Sample Prompts</h2>
+        <p>Before testing, add some sample prompts through the extension's options page:</p>
+        <ul>
+            <li><strong>Code Review:</strong> "Please review this code for potential improvements, bugs, and best practices."</li>
+            <li><strong>Explain Code:</strong> "Please explain what this code does in simple terms."</li>
+            <li><strong>Bug Fix:</strong> "Help me identify and fix the bug in this code."</li>
+            <li><strong>Optimize:</strong> "How can I optimize this code for better performance?"</li>
+        </ul>
+    </div>
+
+    <div class="instructions">
+        <h3>Customization Options</h3>
+        <p>Access the extension's options page to:</p>
+        <ul>
+            <li>Change the hotkey combination (default: Ctrl+Shift+P)</li>
+            <li>Modify the text trigger (default: AI:)</li>
+            <li>Add, edit, and delete saved prompts</li>
+            <li>Manage your prompt library</li>
+        </ul>
+    </div>
+
+    <script>
+        // Add some visual feedback for testing
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+                console.log('Hotkey detected: Ctrl+Shift+P');
+            }
+        });
+
+        document.addEventListener('input', (e) => {
+            if (e.target.value.includes('AI:')) {
+                console.log('Text trigger detected: AI:');
+            }
+        });
+    </script>
+</body>
+</html>

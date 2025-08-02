@@ -16,10 +16,6 @@ author = "agent"
 task = "workflow.run"
 args = "Extension Server"
 
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "firefox_extension_test"
-
 [[workflows.workflow]]
 name = "Extension Server"
 author = "agent"
@@ -28,14 +24,6 @@ author = "agent"
 task = "shell.exec"
 args = "python3 -m http.server 5000"
 waitForPort = 5000
-
-[[workflows.workflow]]
-name = "firefox_extension_test"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "firefox --new-instance --profile /tmp/firefox_profile"
 
 [[ports]]
 localPort = 5000
