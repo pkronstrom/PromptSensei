@@ -1,0 +1,41 @@
+modules = ["nodejs-20", "python-3.11"]
+
+[nix]
+channel = "stable-25_05"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Extension Server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "firefox_extension_test"
+
+[[workflows.workflow]]
+name = "Extension Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python3 -m http.server 5000"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "firefox_extension_test"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "firefox --new-instance --profile /tmp/firefox_profile"
+
+[[ports]]
+localPort = 5000
+externalPort = 80

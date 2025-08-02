@@ -1,0 +1,52 @@
+# Overview
+
+AI Prompt Auto-Complete is a browser extension that enables users to quickly access and insert saved AI prompts into any text input field on web pages. The extension provides both hotkey and text trigger activation methods, allowing users to build a personal library of reusable prompt templates for AI interactions.
+
+# User Preferences
+
+Preferred communication style: Simple, everyday language.
+
+# System Architecture
+
+## Extension Architecture
+The system follows the standard browser extension architecture with three main components:
+
+- **Background Script** (`background.js`): Handles data persistence, settings management, and command processing. Uses browser.storage.local for data persistence and manages the core AIPromptManager class.
+
+- **Content Script** (`content.js`): Injected into all web pages to monitor user input, detect triggers, and display the prompt dropdown. Implements the AIPromptAutocomplete class for real-time interaction.
+
+- **Options Page** (`options.html/js/css`): Provides a dedicated interface for managing saved prompts and configuring extension settings through the OptionsManager class.
+
+## Data Storage
+Uses browser.storage.local API for client-side data persistence. Stores settings object containing:
+- Hotkey configuration (default: Ctrl+Shift+P)
+- Text trigger (default: 'AI:')
+- Array of saved prompts with metadata (id, name, content, created timestamp)
+
+## User Interface Components
+- **Dropdown Interface**: Styled overlay that appears over web page inputs with keyboard navigation support
+- **Options Interface**: Full-page settings and prompt management interface with modern CSS styling
+- **Real-time Input Monitoring**: Detects text triggers and hotkey combinations across all web pages
+
+## Activation Methods
+Dual trigger system:
+1. **Hotkey Activation**: Global keyboard shortcut (configurable)
+2. **Text Trigger**: Typing specific text sequence in input fields (configurable)
+
+## Cross-Component Communication
+Uses browser.runtime messaging API for communication between background script, content scripts, and options page. Implements message broadcasting for settings updates across all active tabs.
+
+# External Dependencies
+
+## Browser APIs
+- **browser.storage.local**: Client-side data persistence for settings and prompts
+- **browser.runtime**: Inter-component messaging and extension lifecycle management
+- **browser.commands**: Hotkey registration and handling
+- **browser.tabs**: Tab management for cross-tab communication
+
+## Web Standards
+- **Manifest V2**: Extension configuration and permissions
+- **Content Security Policy**: Security restrictions for extension execution
+- **DOM APIs**: Input field detection and manipulation across web pages
+
+No external services, databases, or third-party APIs are required. The extension operates entirely within the browser environment using local storage and native browser extension APIs.
