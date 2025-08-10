@@ -280,8 +280,22 @@ class AIPromptAutocomplete {
       
       const preview = document.createElement('div');
       preview.className = 'ai-prompt-preview';
-      preview.textContent = prompt.content.substring(0, 100) + 
-                           (prompt.content.length > 100 ? '...' : '');
+      
+      // Clean up the content: trim, remove empty lines, and normalize whitespace
+      const cleanContent = prompt.content
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      const maxLength = 100;
+      const truncated = cleanContent.length > maxLength 
+        ? cleanContent.substring(0, maxLength).trim() + '...'
+        : cleanContent;
+      
+      preview.textContent = truncated;
       
       item.appendChild(name);
       item.appendChild(preview);
