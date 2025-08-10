@@ -94,17 +94,6 @@ class AIPromptAutocomplete {
         return false;
       }
     }, true);
-    
-    // Additional Enter key prevention at document level
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && (this.textTriggerActive || this.isDropdownVisible)) {
-        if (!this.dropdown || !this.dropdown.contains(e.target)) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-        }
-      }
-    }, true);
   }
 
   isInputElement(element) {
@@ -126,16 +115,18 @@ class AIPromptAutocomplete {
       return;
     }
 
-    // Handle dropdown navigation
+    // Handle dropdown navigation - highest priority
     if (this.isDropdownVisible) {
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
+          e.stopPropagation();
           this.selectNext();
           break;
         
         case 'ArrowUp':
           e.preventDefault();
+          e.stopPropagation();
           this.selectPrevious();
           break;
         
@@ -143,18 +134,26 @@ class AIPromptAutocomplete {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
-          this.insertSelectedPrompt();
+          if (this.selectedIndex >= 0 && this.filteredPrompts[this.selectedIndex]) {
+            this.insertSelectedPrompt();
+          } else if (this.filteredPrompts.length > 0) {
+            // If no item selected, select the first one
+            this.selectedIndex = 0;
+            this.updateSelection();
+            this.insertSelectedPrompt();
+          }
           break;
         
         case 'Escape':
           e.preventDefault();
+          e.stopPropagation();
           this.hideDropdown();
           break;
       }
       return;
     }
 
-    // Prevent form submission when dropdown might appear
+    // Prevent form submission when text trigger is active
     if (e.key === 'Enter' && this.textTriggerActive) {
       e.preventDefault();
       e.stopPropagation();
