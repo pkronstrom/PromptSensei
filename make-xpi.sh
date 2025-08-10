@@ -4,9 +4,9 @@
 # make-xpi.sh - Generate XPI file for Firefox extension
 
 # Set extension name and version
-EXTENSION_NAME="ai-prompt-autocomplete"
+EXTENSION_NAME="prompt-sensei"
 VERSION=$(grep '"version"' firefox/manifest.json | cut -d'"' -f4)
-XPI_NAME="${EXTENSION_NAME}-v${VERSION}.xpi"
+XPI_NAME="${EXTENSION_NAME}-${VERSION}.xpi"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -14,7 +14,7 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}Building Firefox Extension XPI...${NC}"
+echo -e "${BLUE}Building Prompt Sensei Extension XPI...${NC}"
 echo "Extension: $EXTENSION_NAME"
 echo "Version: $VERSION"
 echo "Output: $XPI_NAME"
