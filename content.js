@@ -9,6 +9,7 @@ class AIPromptAutocomplete {
     this.isDropdownVisible = false;
     this.textTriggerActive = false;
     this.textTriggerPosition = -1;
+    this.justInsertedPrompt = false;
     
     this.init();
   }
@@ -72,16 +73,6 @@ class AIPromptAutocomplete {
       this.handleKeydown(e);
     });
 
-    // Handle keyup to prevent Enter from triggering after prompt insertion
-    document.addEventListener('keyup', (e) => {
-      if (e.key === 'Enter' && this.textTriggerActive) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        return false;
-      }
-    });
-
     document.addEventListener('input', (e) => {
       if (this.isInputElement(e.target)) {
         this.handleInput(e);
@@ -95,9 +86,19 @@ class AIPromptAutocomplete {
       }
     });
 
-    // Prevent form submission when dropdown is active
+    // Prevent form submission when dropdown is active or just after prompt insertion
     document.addEventListener('submit', (e) => {
-      if (this.textTriggerActive || this.isDropdownVisible) {
+      if (this.textTriggerActive || this.isDropdownVisible || this.justInsertedPrompt) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+      }
+    }, true);
+
+    // Also prevent form submission on keydown Enter when text trigger is active
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (this.textTriggerActive || this.justInsertedPrompt)) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -438,13 +439,23 @@ class AIPromptAutocomplete {
     this.setInputValue(this.activeInput, newValue);
     this.setCursorPosition(this.activeInput, newCursorPos);
     
-    // Trigger input event for frameworks that rely on it
-    const inputEvent = new Event('input', { bubbles: true });
-    this.activeInput.dispatchEvent(inputEvent);
+    // Set flag to prevent form submission immediately after insertion
+    this.justInsertedPrompt = true;
+    
+    // Trigger input event for frameworks that rely on it (after a small delay)
+    setTimeout(() => {
+      const inputEvent = new Event('input', { bubbles: true });
+      this.activeInput.dispatchEvent(inputEvent);
+    }, 50);
     
     this.hideDropdown();
     this.textTriggerActive = false;
     this.textTriggerPosition = -1;
+    
+    // Clear the insertion flag after a longer delay to prevent accidental submissions
+    setTimeout(() => {
+      this.justInsertedPrompt = false;
+    }, 500);
     
     // Add small delay to ensure form submission is prevented
     setTimeout(() => {
