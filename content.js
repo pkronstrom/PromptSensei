@@ -72,6 +72,16 @@ class AIPromptAutocomplete {
       this.handleKeydown(e);
     });
 
+    // Handle keyup to prevent Enter from triggering after prompt insertion
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'Enter' && this.textTriggerActive) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+      }
+    });
+
     document.addEventListener('input', (e) => {
       if (this.isInputElement(e.target)) {
         this.handleInput(e);
@@ -160,7 +170,7 @@ class AIPromptAutocomplete {
             this.updateSelection();
             this.insertSelectedPrompt();
           }
-          break;
+          return false;
         
         case 'Escape':
           e.preventDefault();
@@ -175,7 +185,8 @@ class AIPromptAutocomplete {
     if (e.key === 'Enter' && this.textTriggerActive) {
       e.preventDefault();
       e.stopPropagation();
-      return;
+      e.stopImmediatePropagation();
+      return false;
     }
   }
 
