@@ -476,6 +476,15 @@ class AIPromptAutocomplete {
   renderPlaceholderForm() {
     this.dropdown.innerHTML = '';
     this.dropdown.className = 'ai-prompt-dropdown placeholder-mode';
+    const scroll = document.createElement('div');
+    scroll.className = 'ai-scroll';
+
+    // Add prompt name header for context
+    const nameHeader = document.createElement('div');
+    nameHeader.className = 'placeholder-prompt-name';
+    const currentPrompt = this.filteredPrompts[this.selectedIndex];
+    nameHeader.textContent = currentPrompt ? currentPrompt.name : 'Prompt';
+    scroll.appendChild(nameHeader);
     
     // Create preview section
     const previewSection = document.createElement('div');
@@ -491,7 +500,7 @@ class AIPromptAutocomplete {
     
     previewSection.appendChild(previewLabel);
     previewSection.appendChild(previewContent);
-    this.dropdown.appendChild(previewSection);
+    scroll.appendChild(previewSection);
     
     // Create form section
     const formSection = document.createElement('div');
@@ -537,8 +546,9 @@ class AIPromptAutocomplete {
     instructions.className = 'placeholder-instructions';
     instructions.innerHTML = 'Tab/Shift+Tab to navigate • Enter to insert • Esc to go back';
     
-    this.dropdown.appendChild(formSection);
-    this.dropdown.appendChild(instructions);
+    scroll.appendChild(formSection);
+    scroll.appendChild(instructions);
+    this.dropdown.appendChild(scroll);
     
     this.updatePreview();
   }
@@ -711,13 +721,17 @@ class AIPromptAutocomplete {
 
   renderDropdown() {
     this.dropdown.innerHTML = '';
+    // Create inner scroll container to preserve rounded corners on scrollbar
+    const scroll = document.createElement('div');
+    scroll.className = 'ai-scroll';
     
     if (this.filteredPrompts.length === 0) {
       this.selectedIndex = -1;
       const noResults = document.createElement('div');
       noResults.className = 'ai-prompt-no-results';
       noResults.textContent = 'No prompts found';
-      this.dropdown.appendChild(noResults);
+      scroll.appendChild(noResults);
+      this.dropdown.appendChild(scroll);
       return;
     }
 
@@ -766,11 +780,12 @@ class AIPromptAutocomplete {
         this.updateSelection();
       });
 
-      this.dropdown.appendChild(item);
+      scroll.appendChild(item);
     });
     
     // Apply visual selection to the first item
     this.updateSelection();
+    this.dropdown.appendChild(scroll);
   }
 
   positionDropdown() {

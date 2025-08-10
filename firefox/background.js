@@ -30,7 +30,7 @@ class AIPromptManager {
   createContextMenu() {
     browser.contextMenus.create({
       id: 'save-as-prompt',
-      title: 'Save as AI Prompt',
+      title: 'PromptSensei: save as prompt',
       contexts: ['selection']
     });
 
@@ -55,8 +55,21 @@ class AIPromptManager {
       }
     });
 
-    // Open options page
-    browser.runtime.openOptionsPage();
+    // If options page is already open, focus it and let options.js storage listener handle the modal
+    try {
+      const url = browser.runtime.getURL('options.html');
+      const tabs = await browser.tabs.query({ url });
+      if (tabs && tabs.length > 0) {
+        await browser.tabs.update(tabs[0].id, { active: true });
+        await browser.windows.update(tabs[0].windowId, { focused: true });
+      } else {
+        // Open options page if not already open
+        browser.runtime.openOptionsPage();
+      }
+    } catch (e) {
+      // Fallback: open options page
+      browser.runtime.openOptionsPage();
+    }
   }
 
   async getSettings() {

@@ -160,13 +160,13 @@ body {
 /* Prompt Cards */
 .prompts-list {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .prompt-card {
   border: 1px solid #e5e7eb;
   border-radius: 6px;
-  padding: 14px;
+  padding: 10px;
   transition: border-color 0.2s;
 }
 
@@ -178,11 +178,11 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .prompt-name {
-  font-size: 1.1rem;
+  font-size: 1.02rem;
   font-weight: 600;
   color: #111827;
   margin: 0;
@@ -195,9 +195,9 @@ body {
 
 .prompt-content {
   color: #4b5563;
-  margin-bottom: 8px;
-  line-height: 1.4;
-  white-space: pre-wrap;
+  margin-bottom: 6px;
+  line-height: 1.35;
+  white-space: pre-line; /* Preserve newlines, collapse spaces to avoid first-line indent */
   word-break: break-word;
 }
 
@@ -208,7 +208,7 @@ body {
 }
 
 .prompt-meta {
-  font-size: 12px;
+  font-size: 11px;
   color: #9ca3af;
 }
 

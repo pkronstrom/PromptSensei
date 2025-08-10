@@ -12,6 +12,7 @@ class OptionsManager {
     await this.loadSettings();
     this.renderUI();
     this.setupEventListeners();
+    this.setupStorageListeners();
     await this.checkForPendingPrompt();
   }
 
@@ -208,6 +209,23 @@ class OptionsManager {
         this.hideDeleteModal();
       }
     });
+  }
+
+  setupStorageListeners() {
+    // React when background saves a new pendingPrompt while options page is already open
+    try {
+      browser.storage.onChanged.addListener(async (changes, area) => {
+        if (area !== 'local') return;
+        if (changes.pendingPrompt && changes.pendingPrompt.newValue && changes.pendingPrompt.newValue.content) {
+          const content = changes.pendingPrompt.newValue.content;
+          // Clear the pending prompt first to avoid duplicate handling
+          try { await browser.runtime.sendMessage({ action: 'clearPendingPrompt' }); } catch (_) {}
+          this.showPromptModalWithContent(content);
+        }
+      });
+    } catch (error) {
+      console.error('Error setting up storage listeners:', error);
+    }
   }
 
   async saveSettings() {

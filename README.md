@@ -1,4 +1,3 @@
-
 # AI Prompt Auto-Complete Firefox Extension
 
 A powerful Firefox extension that allows users to quickly access and insert saved AI prompts into any text input field on web pages. Streamline your AI interactions with customizable hotkeys and text triggers.
@@ -23,9 +22,8 @@ A powerful Firefox extension that allows users to quickly access and insert save
 1. Open Firefox and navigate to `about:debugging`
 2. Click **"This Firefox"** in the left sidebar
 3. Click the **"Load Temporary Add-on"** button
-4. Navigate to the `firefox` folder in this project
-5. Select the `manifest.json` file
-6. The extension will be loaded and active immediately
+4. Select the prompt-sensei-1.x.x.xpi
+5. The extension will be loaded and active immediately
 
 **Note**: This method loads the extension temporarily and it will be removed when Firefox restarts. This is the standard development approach for testing unsigned extensions.
 
@@ -78,71 +76,25 @@ The dropdown will filter prompts based on your search terms.
 ### Customization Options
 
 #### Hotkey Configuration
+
 - Click **"Change Hotkey"** button
 - Press your desired key combination
 - Supports Ctrl, Alt, Shift modifiers
 - Examples: `Ctrl+Shift+P`, `Alt+Space`, `Ctrl+Alt+A`
 
 #### Text Trigger Configuration
+
 - Modify the text trigger phrase (default: `AI:`)
 - Examples: `>>`, `//ai`, `prompt:`
 - Leave empty to disable text trigger
 
 #### Prompt Management
+
 - **Add New Prompts**: Click "Add New Prompt" button
 - **Edit Existing**: Click edit icon on any prompt
 - **Delete Prompts**: Click delete icon with confirmation
 - **Search Prompts**: Use the search bar to filter prompts
 - **Export/Import**: Backup your prompts as JSON files
-
-## 📝 Sample Prompts
-
-Here are some useful prompts to get you started:
-
-### Code-Related Prompts
-
-**Code Review**
-```
-Please review this code for potential improvements, bugs, and best practices. Focus on:
-- Code efficiency and performance
-- Security vulnerabilities
-- Maintainability and readability
-- Error handling
-```
-
-**Explain Code**
-```
-Please explain what this code does in simple terms. Break down:
-- The main purpose and functionality
-- Key components and their roles
-- How the different parts work together
-```
-
-**Debug Help**
-```
-Help me identify and fix the bug in this code. Please:
-- Analyze the code for potential issues
-- Suggest specific fixes
-- Explain why the bug occurs
-```
-
-### Writing Prompts
-
-**Improve Writing**
-```
-Please improve this text for clarity, grammar, and style. Make it more:
-- Professional and polished
-- Clear and concise
-- Engaging for the target audience
-```
-
-**Summarize Content**
-```
-Please provide a concise summary of this content, highlighting:
-- Key points and main ideas
-- Important details and findings
-- Actionable insights or conclusions
-```
 
 ## 🛠️ Development
 
@@ -166,32 +118,6 @@ firefox/
 - **AIPromptAutocomplete** (content.js): Manages dropdown display and user interaction
 - **OptionsManager** (options.js): Provides settings interface
 
-### Testing
-
-1. Load the extension in development mode
-2. Open `firefox/test.html` in your browser
-3. Test both hotkey and text trigger functionality
-4. Verify dropdown appears and prompts can be inserted
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-**Dropdown not appearing**
-- Ensure the input field is properly focused
-- Check if hotkey conflicts with browser shortcuts
-- Verify extension is properly loaded in `about:debugging`
-
-**Prompts not inserting**
-- Make sure you have prompts saved in settings
-- Check if the target input field supports text insertion
-- Try refreshing the page and testing again
-
-**Settings not saving**
-- Check browser permissions for local storage
-- Ensure extension has proper permissions
-- Try reloading the extension
-
 ### Browser Compatibility
 
 - **Minimum Firefox Version**: 57+ (Quantum)
@@ -201,23 +127,3 @@ firefox/
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📞 Support
-
-If you encounter any issues or have suggestions:
-
-1. Check the troubleshooting section above
-2. Review existing issues in the repository
-3. Create a new issue with detailed information about the problem
-
----
-
-**Happy prompting! 🎉**
