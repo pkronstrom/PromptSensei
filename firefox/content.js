@@ -63,8 +63,12 @@ class AIPromptAutocomplete {
   handleMessage(message) {
     switch (message.action) {
       case 'showPromptDropdown':
+        console.log('Received showPromptDropdown message');
         if (this.activeInput) {
+          console.log('Active input found, activating dropdown mode');
           this.activateDropdownMode('hotkey');
+        } else {
+          console.log('No active input for browser hotkey');
         }
         break;
 
@@ -78,6 +82,7 @@ class AIPromptAutocomplete {
     // Monitor all input fields
     document.addEventListener('focusin', (e) => {
       if (this.isInputElement(e.target)) {
+        console.log('Input focused:', e.target.tagName, e.target.contentEditable, e.target);
         // If switching to a different input, reset dropdown mode
         if (this.activeInput !== e.target) {
           this.resetDropdownMode();
@@ -170,10 +175,13 @@ class AIPromptAutocomplete {
 
     // Handle custom hotkey
     if (this.matchesHotkey(e, this.settings?.hotkey)) {
+      console.log('Hotkey matched, activating dropdown mode');
       e.preventDefault();
       e.stopPropagation();
       if (this.activeInput) {
         this.activateDropdownMode('hotkey');
+      } else {
+        console.log('No active input for hotkey');
       }
       return false;
     }
@@ -313,11 +321,14 @@ class AIPromptAutocomplete {
     const mainKey = keys[keys.length - 1].toLowerCase();
 
     const eventKey = event.key.toLowerCase();
-    const hasCtrl = modifiers.includes('ctrl') ? event.ctrlKey : !event.ctrlKey;
-    const hasShift = modifiers.includes('shift') ? event.shiftKey : !event.shiftKey;
-    const hasAlt = modifiers.includes('alt') ? event.altKey : !event.altKey;
+    
+    // Check if all required modifiers are pressed and no extra ones
+    const hasCtrl = modifiers.includes('ctrl') === event.ctrlKey;
+    const hasShift = modifiers.includes('shift') === event.shiftKey;
+    const hasAlt = modifiers.includes('alt') === event.altKey;
+    const hasMeta = modifiers.includes('meta') === event.metaKey;
 
-    return eventKey === mainKey && hasCtrl && hasShift && hasAlt;
+    return eventKey === mainKey && hasCtrl && hasShift && hasAlt && hasMeta;
   }
 
 
@@ -478,23 +489,48 @@ class AIPromptAutocomplete {
   positionDropdown() {
     if (!this.activeInput || !this.dropdown) return;
 
+    // Force dropdown to be visible for measurement
+    this.dropdown.style.visibility = 'hidden';
+    this.dropdown.style.display = 'block';
+
     const inputRect = this.activeInput.getBoundingClientRect();
     const dropdownHeight = this.dropdown.offsetHeight;
+    const dropdownWidth = this.dropdown.offsetWidth;
     const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
 
-    // Position below input by default
-    let top = inputRect.bottom + window.scrollY + 2;
+    console.log('Positioning dropdown:', {
+      inputType: this.activeInput.tagName,
+      contentEditable: this.activeInput.contentEditable,
+      inputRect,
+      dropdownSize: { width: dropdownWidth, height: dropdownHeight }
+    });
+
+    // Calculate optimal position
+    let top = inputRect.bottom + window.scrollY + 4;
+    let left = inputRect.left + window.scrollX;
 
     // If dropdown would be cut off at bottom, position above
-    if (inputRect.bottom + dropdownHeight > viewportHeight) {
-      top = inputRect.top + window.scrollY - dropdownHeight - 2;
+    if (inputRect.bottom + dropdownHeight + 10 > viewportHeight) {
+      top = inputRect.top + window.scrollY - dropdownHeight - 4;
     }
+
+    // If dropdown would be cut off at right, align to right edge of input
+    if (left + dropdownWidth > viewportWidth) {
+      left = inputRect.right + window.scrollX - dropdownWidth;
+    }
+
+    // Ensure minimum left position
+    left = Math.max(10, left);
 
     this.dropdown.style.position = 'absolute';
     this.dropdown.style.top = `${top}px`;
-    this.dropdown.style.left = `${inputRect.left + window.scrollX}px`;
+    this.dropdown.style.left = `${left}px`;
     this.dropdown.style.width = `${Math.max(300, inputRect.width)}px`;
     this.dropdown.style.zIndex = '10000';
+    
+    // Make dropdown visible again
+    this.dropdown.style.visibility = 'visible';
   }
 
   selectNext() {
