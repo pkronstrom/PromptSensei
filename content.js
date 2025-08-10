@@ -182,13 +182,7 @@ class AIPromptAutocomplete {
       return;
     }
 
-    // Prevent form submission when text trigger is active
-    if (e.key === 'Enter' && this.textTriggerActive) {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      return false;
-    }
+    
   }
 
   handleInput(e) {
