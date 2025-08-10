@@ -731,7 +731,7 @@ class AIPromptAutocomplete {
   }
 
   positionDropdown() {
-    if (!this.activeInput || !this.dropdown) return;
+    if (!this.dropdown) return;
 
     // Use double requestAnimationFrame for better stability
     requestAnimationFrame(() => {
@@ -741,13 +741,27 @@ class AIPromptAutocomplete {
         this.dropdown.style.display = 'block';
         this.dropdown.style.position = 'absolute';
 
-        const inputRect = this.activeInput.getBoundingClientRect();
-        
-        // Ensure we have valid input dimensions with retry mechanism
-        if (inputRect.width === 0 && inputRect.height === 0) {
-          console.warn('Input element has no dimensions, retrying positioning');
-          setTimeout(() => this.positionDropdown(), 50);
-          return;
+        let inputRect;
+        let useFallbackPosition = false;
+
+        // Try to get input rectangle, fallback if activeInput is null or invalid
+        if (this.activeInput) {
+          try {
+            inputRect = this.activeInput.getBoundingClientRect();
+            
+            // Ensure we have valid input dimensions with retry mechanism
+            if (inputRect.width === 0 && inputRect.height === 0) {
+              console.warn('Input element has no dimensions, retrying positioning');
+              setTimeout(() => this.positionDropdown(), 50);
+              return;
+            }
+          } catch (error) {
+            console.warn('Error getting input bounds, using fallback position:', error);
+            useFallbackPosition = true;
+          }
+        } else {
+          console.warn('No active input, using fallback position');
+          useFallbackPosition = true;
         }
 
         // Get dropdown dimensions after it's rendered
@@ -756,26 +770,36 @@ class AIPromptAutocomplete {
         const viewportHeight = window.innerHeight;
         const viewportWidth = window.innerWidth;
 
-        // Calculate optimal position
-        let top = inputRect.bottom + window.scrollY + 4;
-        let left = inputRect.left + window.scrollX;
+        let top, left;
 
-        // If dropdown would be cut off at bottom, position above
-        if (inputRect.bottom + dropdownHeight + 10 > viewportHeight) {
-          top = inputRect.top + window.scrollY - dropdownHeight - 4;
+        if (useFallbackPosition || !inputRect) {
+          // Fallback: position in a reasonable location when input is null
+          // Center horizontally, position in upper portion of viewport
+          left = Math.max(10, (viewportWidth - dropdownWidth) / 2);
+          top = window.scrollY + 100; // 100px from top of viewport
+        } else {
+          // Calculate optimal position based on input
+          top = inputRect.bottom + window.scrollY + 4;
+          left = inputRect.left + window.scrollX;
+
+          // If dropdown would be cut off at bottom, position above
+          if (inputRect.bottom + dropdownHeight + 10 > viewportHeight) {
+            top = inputRect.top + window.scrollY - dropdownHeight - 4;
+          }
+
+          // If dropdown would be cut off at right, align to right edge of input
+          if (left + dropdownWidth > viewportWidth) {
+            left = inputRect.right + window.scrollX - dropdownWidth;
+          }
         }
 
-        // If dropdown would be cut off at right, align to right edge of input
-        if (left + dropdownWidth > viewportWidth) {
-          left = inputRect.right + window.scrollX - dropdownWidth;
-        }
-
-        // Ensure minimum left position
-        left = Math.max(10, left);
+        // Ensure minimum left position and keep within viewport
+        left = Math.max(10, Math.min(left, viewportWidth - dropdownWidth - 10));
+        top = Math.max(10, top);
 
         this.dropdown.style.top = `${top}px`;
         this.dropdown.style.left = `${left}px`;
-        this.dropdown.style.width = `${Math.max(300, inputRect.width)}px`;
+        this.dropdown.style.width = useFallbackPosition ? '300px' : `${Math.max(300, inputRect ? inputRect.width : 300)}px`;
         this.dropdown.style.zIndex = '10000';
         
         // Make dropdown visible again
@@ -903,6 +927,19 @@ class AIPromptAutocomplete {
       finalContent = finalContent.replace(regex, value);
     });
     
+    // Store original dropdown mode state before resetting placeholder mode
+    const originalDropdownMode = this.isInDropdownMode;
+    const originalDropdownModeType = this.dropdownModeType;
+    const originalDropdownModeStartPosition = this.dropdownModeStartPosition;
+    
+    // Reset placeholder mode first
+    this.resetPlaceholderMode();
+    
+    // Restore dropdown mode state for proper text trigger handling
+    this.isInDropdownMode = originalDropdownMode;
+    this.dropdownModeType = originalDropdownModeType;
+    this.dropdownModeStartPosition = originalDropdownModeStartPosition;
+    
     this.insertPrompt(finalContent);
   }
 
@@ -973,10 +1010,12 @@ class AIPromptAutocomplete {
   }
 
   getInputValue(input) {
+    if (!input) return '';
     return input.contentEditable === 'true' ? input.textContent : input.value;
   }
 
   setInputValue(input, value) {
+    if (!input) return;
     if (input.contentEditable === 'true') {
       input.textContent = value;
     } else {
@@ -985,6 +1024,7 @@ class AIPromptAutocomplete {
   }
 
   getCursorPosition(input) {
+    if (!input) return 0;
     if (input.contentEditable === 'true') {
       const selection = window.getSelection();
       return selection.rangeCount > 0 ? selection.getRangeAt(0).startOffset : 0;
@@ -994,6 +1034,7 @@ class AIPromptAutocomplete {
   }
 
   setCursorPosition(input, position) {
+    if (!input) return;
     if (input.contentEditable === 'true') {
       const range = document.createRange();
       const selection = window.getSelection();
