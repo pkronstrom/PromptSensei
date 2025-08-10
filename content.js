@@ -68,10 +68,10 @@ class AIPromptAutocomplete {
       }, 100);
     });
 
-    // Handle keyboard events
+    // Handle keyboard events with capture to intercept before any other handlers
     document.addEventListener('keydown', (e) => {
       this.handleKeydown(e);
-    });
+    }, true); // Use capture phase
 
     document.addEventListener('input', (e) => {
       if (this.isInputElement(e.target)) {
@@ -85,26 +85,6 @@ class AIPromptAutocomplete {
         this.hideDropdown();
       }
     });
-
-    // Prevent form submission when dropdown is active or just after prompt insertion
-    document.addEventListener('submit', (e) => {
-      if (this.textTriggerActive || this.isDropdownVisible || this.justInsertedPrompt) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        return false;
-      }
-    }, true);
-
-    // Also prevent form submission on keydown Enter when text trigger is active
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && (this.textTriggerActive || this.justInsertedPrompt)) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        return false;
-      }
-    }, true);
   }
 
   isInputElement(element) {
@@ -135,54 +115,63 @@ class AIPromptAutocomplete {
   }
 
   handleKeydown(e) {
+    // When dropdown is visible, completely intercept ALL Enter events
+    if (this.isDropdownVisible && e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      
+      if (this.selectedIndex >= 0 && this.filteredPrompts[this.selectedIndex]) {
+        this.insertSelectedPrompt();
+      } else if (this.filteredPrompts.length > 0) {
+        // If no item selected, select the first one
+        this.selectedIndex = 0;
+        this.updateSelection();
+        this.insertSelectedPrompt();
+      }
+      return false;
+    }
+
+    // When text trigger is active, intercept Enter to prevent form submission
+    if (this.textTriggerActive && e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return false;
+    }
+
     // Handle custom hotkey
     if (this.matchesHotkey(e, this.settings?.hotkey)) {
       e.preventDefault();
+      e.stopPropagation();
       if (this.activeInput) {
         this.showDropdown();
       }
-      return;
+      return false;
     }
 
-    // Handle dropdown navigation - highest priority
+    // Handle dropdown navigation
     if (this.isDropdownVisible) {
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
           e.stopPropagation();
           this.selectNext();
-          break;
+          return false;
         
         case 'ArrowUp':
           e.preventDefault();
           e.stopPropagation();
           this.selectPrevious();
-          break;
-        
-        case 'Enter':
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          if (this.selectedIndex >= 0 && this.filteredPrompts[this.selectedIndex]) {
-            this.insertSelectedPrompt();
-          } else if (this.filteredPrompts.length > 0) {
-            // If no item selected, select the first one
-            this.selectedIndex = 0;
-            this.updateSelection();
-            this.insertSelectedPrompt();
-          }
           return false;
         
         case 'Escape':
           e.preventDefault();
           e.stopPropagation();
           this.hideDropdown();
-          break;
+          return false;
       }
-      return;
     }
-
-    
   }
 
   handleInput(e) {
