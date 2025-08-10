@@ -101,7 +101,7 @@ class AIPromptAutocomplete {
     document.addEventListener('focusout', (e) => {
       // Delay to allow dropdown interaction
       setTimeout(() => {
-        if (this.activeInput === e.target && !this.isDropdownFocused()) {
+        if (this.activeInput === e.target && !this.isDropdownFocused() && !this.isInPlaceholderMode) {
           this.resetDropdownMode();
           this.activeInput = null;
         }
@@ -957,7 +957,11 @@ class AIPromptAutocomplete {
   }
 
   isDropdownFocused() {
-    return this.dropdown && this.dropdown.contains(document.activeElement);
+    if (!this.dropdown) return false;
+    
+    // Check if dropdown or any of its contents (including placeholder inputs) are focused
+    return this.dropdown.contains(document.activeElement) || 
+           (this.isInPlaceholderMode && document.activeElement.classList.contains('placeholder-input'));
   }
 
   showNoPromptsMessage() {
