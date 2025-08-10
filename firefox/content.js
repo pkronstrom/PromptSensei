@@ -558,25 +558,25 @@ class AIPromptAutocomplete {
     if (!previewElement) return;
     
     let preview = this.currentPromptContent;
-    
-    // Replace placeholders with current values
-    this.placeholders.forEach(placeholder => {
-      const value = this.placeholderValues[placeholder.name] || placeholder.defaultValue || `[${placeholder.name}]`;
-      const regex = placeholder.syntax === 'bracket' 
-        ? new RegExp(`\\[${this.escapeRegex(placeholder.name)}(?::[^\\]]*)?\\]`, 'g')
-        : new RegExp(`\\{${this.escapeRegex(placeholder.name)}(?::[^\\}]*)?\\}`, 'g');
-      preview = preview.replace(regex, value);
+
+    // Replace all placeholders with their values, and only wrap the actual placeholder positions
+    this.placeholders.forEach((placeholder, index) => {
+      const name = placeholder.name;
+      const valueRaw = this.placeholderValues[name] || placeholder.defaultValue || `[${name}]`;
+      const value = this.escapeHtml(valueRaw);
+
+      const wrapIfCurrent = (match) => {
+        return index === this.currentPlaceholderIndex
+          ? `<span class="current-placeholder">${value}</span>`
+          : value;
+      };
+
+      // Replace both bracket and brace syntaxes for this placeholder name
+      const bracketRegex = new RegExp(`\\[${this.escapeRegex(name)}(?::[^\\]]*)?\\]`, 'g');
+      const braceRegex = new RegExp(`\\{${this.escapeRegex(name)}(?::[^\\}]*)?\\}`, 'g');
+      preview = preview.replace(bracketRegex, wrapIfCurrent).replace(braceRegex, wrapIfCurrent);
     });
-    
-    // Highlight the current placeholder being edited
-    if (this.placeholders[this.currentPlaceholderIndex]) {
-      const currentPlaceholder = this.placeholders[this.currentPlaceholderIndex];
-      const currentValue = this.placeholderValues[currentPlaceholder.name] || currentPlaceholder.defaultValue || `[${currentPlaceholder.name}]`;
-      
-      // Wrap current placeholder value in a highlight span
-      preview = preview.replace(currentValue, `<span class="current-placeholder">${currentValue}</span>`);
-    }
-    
+
     previewElement.innerHTML = preview;
   }
 
@@ -608,6 +608,12 @@ class AIPromptAutocomplete {
 
   escapeRegex(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   matchesHotkey(event, hotkey) {
@@ -1074,13 +1080,20 @@ class AIPromptAutocomplete {
 
   getInputValue(input) {
     if (!input) return '';
-    return (input.isContentEditable || input.contentEditable === 'true') ? input.textContent : input.value;
+    if (input.isContentEditable || input.contentEditable === 'true') {
+      // Preserve line breaks from contentEditable
+      const text = input.innerText !== undefined ? input.innerText : input.textContent || '';
+      return text.replace(/\r\n/g, '\n');
+    }
+    return input.value;
   }
 
   setInputValue(input, value) {
     if (!input) return;
     if (input.isContentEditable || input.contentEditable === 'true') {
-      input.textContent = value;
+      // Escape HTML and convert newlines to <br> for visual line breaks
+      const safeHtml = this.escapeHtml(value).replace(/\n/g, '<br>');
+      input.innerHTML = safeHtml;
     } else {
       input.value = value;
     }
@@ -1112,6 +1125,7 @@ class AIPromptAutocomplete {
       const selection = window.getSelection();
       if (!selection) return;
       const range = document.createRange();
+      // Measure against textContent length to count characters; HTML <br> represent newlines visually.
       const targetPos = Math.max(0, Math.min(position, (input.textContent || '').length));
 
       // Walk text nodes to find the correct offset
