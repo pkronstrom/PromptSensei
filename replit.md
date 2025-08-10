@@ -81,3 +81,8 @@ No external services, databases, or third-party APIs are required. The extension
   - Enhanced initialization with DOM ready checks and retry logic to fix startup delays
   - Both hotkey and text trigger now use the same filtering mechanism
   - Magic word state properly resets after prompt insertion or ESC key
+  - **Smart Filtering System (August 10, 2025)**: Implemented intelligent best-match scoring
+    - Score-based ranking: exact matches > starts-with > contains > word boundaries
+    - Always auto-selects first (best) match for faster interaction
+    - Fixed keyword reset logic to prevent flickering dropdown behavior
+    - Enhanced text trigger validation to ensure proper cursor positioning

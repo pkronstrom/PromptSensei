@@ -228,10 +228,11 @@ class AIPromptAutocomplete {
     const triggerIndex = beforeCursor.lastIndexOf(trigger);
 
     if (triggerIndex !== -1) {
-      // Check if trigger is at word boundary
+      // Check if trigger is at word boundary and cursor is after the trigger
       const isValidTrigger = triggerIndex === 0 || /\s/.test(beforeCursor[triggerIndex - 1]);
+      const cursorAfterTrigger = cursorPos >= triggerIndex + trigger.length;
 
-      if (isValidTrigger) {
+      if (isValidTrigger && cursorAfterTrigger) {
         // Activate dropdown mode with text trigger
         this.activateDropdownMode('textTrigger', triggerIndex);
         return;
@@ -259,7 +260,7 @@ class AIPromptAutocomplete {
       
       // Get existing text to filter with
       const filterText = beforeCursor.substring(this.dropdownModeStartPosition);
-      this.filterAndShowPrompts(filterText);
+      this.filterAndShowPromptsWithBestMatch(filterText);
     } else if (type === 'textTrigger') {
       this.dropdownModeStartPosition = startPosition + this.settings.textTrigger.length;
       
@@ -267,32 +268,34 @@ class AIPromptAutocomplete {
       const value = this.getInputValue(this.activeInput);
       const cursorPos = this.getCursorPosition(this.activeInput);
       const afterTrigger = value.substring(this.dropdownModeStartPosition, cursorPos);
-      this.filterAndShowPrompts(afterTrigger);
+      this.filterAndShowPromptsWithBestMatch(afterTrigger);
     }
   }
 
   handleDropdownModeInput(value, cursorPos) {
-    // Extract the filter text from the start position to cursor
-    const filterText = value.substring(this.dropdownModeStartPosition, cursorPos);
-    
     // If cursor moved before start position, exit dropdown mode
     if (cursorPos < this.dropdownModeStartPosition) {
       this.resetDropdownMode();
       return;
     }
     
-    // For text trigger, also check if the trigger was removed
+    // For text trigger, validate the trigger is still present
     if (this.dropdownModeType === 'textTrigger') {
       const trigger = this.settings.textTrigger;
-      const beforeStart = value.substring(0, this.dropdownModeStartPosition - trigger.length);
-      if (!beforeStart.endsWith(trigger)) {
+      const triggerStart = this.dropdownModeStartPosition - trigger.length;
+      const triggerText = value.substring(triggerStart, this.dropdownModeStartPosition);
+      
+      if (triggerText !== trigger) {
         this.resetDropdownMode();
         return;
       }
     }
     
+    // Extract the filter text from the start position to cursor
+    const filterText = value.substring(this.dropdownModeStartPosition, cursorPos);
+    
     // Filter prompts based on current text
-    this.filterAndShowPrompts(filterText);
+    this.filterAndShowPromptsWithBestMatch(filterText);
   }
 
   resetDropdownMode() {
@@ -336,6 +339,67 @@ class AIPromptAutocomplete {
     this.isDropdownVisible = true;
   }
 
+  filterAndShowPromptsWithBestMatch(query) {
+    if (!this.settings?.prompts?.length) {
+      this.showNoPromptsMessage();
+      return;
+    }
+
+    const queryLower = query.toLowerCase().trim();
+
+    if (!queryLower) {
+      // No query - show all prompts
+      this.filteredPrompts = [...this.settings.prompts];
+    } else {
+      // Score-based matching for better results
+      const scoredPrompts = this.settings.prompts.map(prompt => {
+        const nameLower = prompt.name.toLowerCase();
+        const contentLower = prompt.content.toLowerCase();
+        
+        let score = 0;
+        
+        // Exact matches get highest score
+        if (nameLower === queryLower) score += 1000;
+        if (contentLower === queryLower) score += 500;
+        
+        // Starts with matches get high score
+        if (nameLower.startsWith(queryLower)) score += 100;
+        if (contentLower.startsWith(queryLower)) score += 50;
+        
+        // Contains matches get lower score
+        if (nameLower.includes(queryLower)) score += 10;
+        if (contentLower.includes(queryLower)) score += 5;
+        
+        // Word boundary matches get bonus
+        const nameWords = nameLower.split(/\s+/);
+        const contentWords = contentLower.split(/\s+/);
+        
+        if (nameWords.some(word => word.startsWith(queryLower))) score += 25;
+        if (contentWords.some(word => word.startsWith(queryLower))) score += 15;
+        
+        return { prompt, score };
+      }).filter(item => item.score > 0);
+
+      // Sort by score (highest first) and extract prompts
+      this.filteredPrompts = scoredPrompts
+        .sort((a, b) => b.score - a.score)
+        .map(item => item.prompt);
+    }
+
+
+
+    this.createDropdown();
+    this.renderDropdown();
+    this.positionDropdown();
+    this.isDropdownVisible = true;
+    
+    // Auto-select first item
+    if (this.filteredPrompts.length > 0) {
+      this.selectedIndex = 0;
+      this.updateSelection();
+    }
+  }
+
   createDropdown() {
     if (this.dropdown) {
       this.dropdown.remove();
@@ -349,15 +413,18 @@ class AIPromptAutocomplete {
 
   renderDropdown() {
     this.dropdown.innerHTML = '';
-    this.selectedIndex = -1;
-
+    
     if (this.filteredPrompts.length === 0) {
+      this.selectedIndex = -1;
       const noResults = document.createElement('div');
       noResults.className = 'ai-prompt-no-results';
       noResults.textContent = 'No prompts found';
       this.dropdown.appendChild(noResults);
       return;
     }
+
+    // Auto-select first item
+    this.selectedIndex = 0;
 
     this.filteredPrompts.forEach((prompt, index) => {
       const item = document.createElement('div');
@@ -403,6 +470,9 @@ class AIPromptAutocomplete {
 
       this.dropdown.appendChild(item);
     });
+    
+    // Apply visual selection to the first item
+    this.updateSelection();
   }
 
   positionDropdown() {
