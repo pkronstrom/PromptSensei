@@ -85,12 +85,24 @@ class AIPromptAutocomplete {
       }
     });
 
-    // Prevent form submission when text trigger is active
+    // Prevent form submission when dropdown is active
     document.addEventListener('submit', (e) => {
       if (this.textTriggerActive || this.isDropdownVisible) {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         return false;
+      }
+    }, true);
+    
+    // Additional Enter key prevention at document level
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (this.textTriggerActive || this.isDropdownVisible)) {
+        if (!this.dropdown || !this.dropdown.contains(e.target)) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        }
       }
     }, true);
   }
@@ -130,6 +142,7 @@ class AIPromptAutocomplete {
         case 'Enter':
           e.preventDefault();
           e.stopPropagation();
+          e.stopImmediatePropagation();
           this.insertSelectedPrompt();
           break;
         
