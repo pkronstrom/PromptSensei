@@ -18,7 +18,7 @@ A powerful Firefox extension that allows users to quickly access and insert save
 
 ## 📦 Installation
 
-### Method 1: Temporary Installation (Development)
+### Development Installation (Recommended)
 
 1. Open Firefox and navigate to `about:debugging`
 2. Click **"This Firefox"** in the left sidebar
@@ -27,12 +27,11 @@ A powerful Firefox extension that allows users to quickly access and insert save
 5. Select the `manifest.json` file
 6. The extension will be loaded and active immediately
 
-### Method 2: Permanent Installation
+**Note**: This method loads the extension temporarily and it will be removed when Firefox restarts. This is the standard development approach for testing unsigned extensions.
 
-1. Navigate to `about:addons` in Firefox
-2. Click the gear icon and select **"Install Add-on From File"**
-3. Select the extension's `.xpi` file (if packaged)
-4. Click **"Add"** to install permanently
+### Future: Mozilla Add-ons Store
+
+For permanent installation, the extension can be submitted to Mozilla's Add-ons store for review and signing. Once approved, users will be able to install it normally. The current `.xpi` file can only be installed via the debugging method above due to Firefox's security policies for unsigned extensions.
 
 ## 🎯 How to Use
 
