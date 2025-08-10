@@ -5,6 +5,7 @@ AI Prompt Auto-Complete is a browser extension that enables users to quickly acc
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
+UI preferences: Compact interface with minimal padding, technical/monospace styling for dropdowns, breathable but efficient use of space.
 
 # System Architecture
 
@@ -24,9 +25,10 @@ Uses browser.storage.local API for client-side data persistence. Stores settings
 - Array of saved prompts with metadata (id, name, content, created timestamp)
 
 ## User Interface Components
-- **Dropdown Interface**: Styled overlay that appears over web page inputs with keyboard navigation support
-- **Options Interface**: Full-page settings and prompt management interface with modern CSS styling
-- **Real-time Input Monitoring**: Detects text triggers and hotkey combinations across all web pages
+- **Dropdown Interface**: Dark themed, technical-style overlay with monospace font that appears over web page inputs with keyboard navigation support
+- **Options Interface**: Compact settings and prompt management interface with reduced padding for efficiency  
+- **Real-time Input Monitoring**: Detects text triggers and hotkey combinations across all web pages with form submission prevention
+- **Export/Import System**: JSON-based backup and restore functionality for prompt libraries
 
 ## Activation Methods
 Dual trigger system:
@@ -50,3 +52,22 @@ Uses browser.runtime messaging API for communication between background script, 
 - **DOM APIs**: Input field detection and manipulation across web pages
 
 No external services, databases, or third-party APIs are required. The extension operates entirely within the browser environment using local storage and native browser extension APIs.
+
+# Recent Changes (August 2025)
+
+## UI/UX Improvements
+- Reduced padding throughout options interface for more compact design
+- Updated dropdown to dark theme with monospace font for technical appearance
+- Added proper form padding in modal edit dialogs
+- Improved responsive design for mobile devices
+
+## New Features
+- **Export/Import Functionality**: Users can now backup and restore prompt libraries via JSON files
+- **Form Submission Prevention**: Fixed critical issue where AI: text trigger would accidentally submit forms
+- **Enhanced Event Handling**: Improved keyboard navigation and prevented unwanted form submissions
+
+## Technical Enhancements
+- Added comprehensive form event prevention when dropdown is active
+- Improved text trigger state management
+- Enhanced error handling for import/export operations
+- Better focus management after prompt insertion

@@ -84,6 +84,15 @@ class AIPromptAutocomplete {
         this.hideDropdown();
       }
     });
+
+    // Prevent form submission when text trigger is active
+    document.addEventListener('submit', (e) => {
+      if (this.textTriggerActive || this.isDropdownVisible) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    }, true);
   }
 
   isInputElement(element) {
@@ -120,6 +129,7 @@ class AIPromptAutocomplete {
         
         case 'Enter':
           e.preventDefault();
+          e.stopPropagation();
           this.insertSelectedPrompt();
           break;
         
@@ -128,6 +138,14 @@ class AIPromptAutocomplete {
           this.hideDropdown();
           break;
       }
+      return;
+    }
+
+    // Prevent form submission when dropdown might appear
+    if (e.key === 'Enter' && this.textTriggerActive) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
     }
   }
 
@@ -362,6 +380,12 @@ class AIPromptAutocomplete {
     
     this.hideDropdown();
     this.textTriggerActive = false;
+    this.textTriggerPosition = -1;
+    
+    // Add small delay to ensure form submission is prevented
+    setTimeout(() => {
+      this.activeInput.focus();
+    }, 10);
   }
 
   getInputValue(input) {
@@ -406,6 +430,7 @@ class AIPromptAutocomplete {
     this.isDropdownVisible = false;
     this.selectedIndex = -1;
     this.filteredPrompts = [];
+    // Keep text trigger state until prompt is inserted or focus is lost
   }
 
   isDropdownFocused() {

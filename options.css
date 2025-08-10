@@ -15,12 +15,12 @@ body {
 .container {
   max-width: 800px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 12px;
 }
 
 .header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
 }
 
 .header h1 {
@@ -38,21 +38,21 @@ body {
 /* Settings Section */
 .settings-section {
   background: white;
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 32px;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .settings-section h2 {
   font-size: 1.5rem;
   font-weight: 600;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   color: #111827;
 }
 
 .setting-group {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .setting-group label {
@@ -88,8 +88,8 @@ body {
 /* Prompts Section */
 .prompts-section {
   background: white;
-  border-radius: 12px;
-  padding: 24px;
+  border-radius: 8px;
+  padding: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
@@ -97,13 +97,18 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .section-header h2 {
   font-size: 1.5rem;
   font-weight: 600;
   color: #111827;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
 }
 
 /* Buttons */
@@ -155,13 +160,13 @@ body {
 /* Prompt Cards */
 .prompts-list {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .prompt-card {
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 20px;
+  border-radius: 6px;
+  padding: 14px;
   transition: border-color 0.2s;
 }
 
@@ -173,7 +178,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .prompt-name {
@@ -190,8 +195,8 @@ body {
 
 .prompt-content {
   color: #4b5563;
-  margin-bottom: 12px;
-  line-height: 1.5;
+  margin-bottom: 8px;
+  line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -248,8 +253,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px 24px 0;
-  margin-bottom: 24px;
+  padding: 20px 20px 0;
+  margin-bottom: 20px;
 }
 
 .modal-header h3 {
@@ -279,8 +284,8 @@ body {
 }
 
 .modal-body {
-  padding: 0 24px;
-  margin-bottom: 24px;
+  padding: 0 20px;
+  margin-bottom: 20px;
 }
 
 /* Form Styles */
@@ -329,7 +334,12 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding: 0 24px 24px;
+  padding: 0 20px 20px;
+}
+
+/* Form in modal needs padding */
+#prompt-form {
+  padding: 0 20px;
 }
 
 /* Prompt Preview in Delete Modal */
@@ -399,6 +409,10 @@ body {
     flex-direction: column;
     align-items: stretch;
     gap: 16px;
+  }
+
+  .header-actions {
+    justify-content: flex-start;
   }
   
   .prompt-header {

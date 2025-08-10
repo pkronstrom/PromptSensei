@@ -37,8 +37,14 @@
       <section class="prompts-section">
         <div class="section-header">
           <h2>Saved Prompts</h2>
-          <button id="add-prompt-btn" class="btn btn-secondary">Add New Prompt</button>
+          <div class="header-actions">
+            <button id="export-prompts-btn" class="btn btn-secondary">Export</button>
+            <button id="import-prompts-btn" class="btn btn-secondary">Import</button>
+            <button id="add-prompt-btn" class="btn btn-secondary">Add New Prompt</button>
+          </div>
         </div>
+        
+        <input type="file" id="import-file-input" accept=".json" style="display: none;">
 
         <div id="prompts-list" class="prompts-list">
           <!-- Prompts will be dynamically populated here -->

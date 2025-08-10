@@ -107,6 +107,19 @@ class OptionsManager {
       this.showPromptModal();
     });
 
+    // Export/Import prompts
+    document.getElementById('export-prompts-btn').addEventListener('click', () => {
+      this.exportPrompts();
+    });
+
+    document.getElementById('import-prompts-btn').addEventListener('click', () => {
+      document.getElementById('import-file-input').click();
+    });
+
+    document.getElementById('import-file-input').addEventListener('change', (e) => {
+      this.importPrompts(e.target.files[0]);
+    });
+
     // Prompt modal
     document.getElementById('close-modal').addEventListener('click', () => {
       this.hidePromptModal();
@@ -358,6 +371,82 @@ class OptionsManager {
     setTimeout(() => {
       notification.remove();
     }, 3000);
+  }
+
+  exportPrompts() {
+    try {
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        version: "1.0",
+        prompts: this.settings.prompts || []
+      };
+
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(dataBlob);
+      link.download = `ai-prompts-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      this.showSuccess(`Exported ${exportData.prompts.length} prompts successfully`);
+    } catch (error) {
+      console.error('Export error:', error);
+      this.showError('Failed to export prompts');
+    }
+  }
+
+  async importPrompts(file) {
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const importData = JSON.parse(text);
+      
+      // Validate import data structure
+      if (!importData.prompts || !Array.isArray(importData.prompts)) {
+        throw new Error('Invalid file format: prompts array not found');
+      }
+
+      // Validate prompt structure
+      const validPrompts = importData.prompts.filter(prompt => 
+        prompt && typeof prompt.name === 'string' && typeof prompt.content === 'string'
+      );
+
+      if (validPrompts.length === 0) {
+        throw new Error('No valid prompts found in file');
+      }
+
+      // Assign new IDs and timestamps to imported prompts
+      const newPrompts = validPrompts.map(prompt => ({
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        name: prompt.name,
+        content: prompt.content,
+        created: new Date().toISOString()
+      }));
+
+      // Add to existing prompts
+      this.settings.prompts = [...(this.settings.prompts || []), ...newPrompts];
+      
+      await browser.runtime.sendMessage({ 
+        action: 'saveSettings', 
+        settings: this.settings 
+      });
+
+      await this.loadSettings();
+      this.renderPrompts();
+      
+      this.showSuccess(`Imported ${newPrompts.length} prompts successfully`);
+      
+      // Clear the file input
+      document.getElementById('import-file-input').value = '';
+    } catch (error) {
+      console.error('Import error:', error);
+      this.showError(`Failed to import prompts: ${error.message}`);
+      document.getElementById('import-file-input').value = '';
+    }
   }
 
   escapeHtml(text) {
