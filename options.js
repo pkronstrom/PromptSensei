@@ -268,6 +268,23 @@ class OptionsManager {
         return;
       }
 
+      // Check for duplicates (skip if editing existing prompt)
+      if (!this.editingPromptId) {
+        const existingPrompt = this.settings.prompts.find(prompt => 
+          prompt.name.toLowerCase() === name.toLowerCase() || 
+          prompt.content === content
+        );
+        
+        if (existingPrompt) {
+          if (existingPrompt.name.toLowerCase() === name.toLowerCase()) {
+            this.showError('A prompt with this name already exists');
+          } else {
+            this.showError('A prompt with this content already exists');
+          }
+          return;
+        }
+      }
+
       const promptData = { name, content };
 
       if (this.editingPromptId) {
