@@ -11,6 +11,13 @@ class AIPromptAutocomplete {
     this.dropdownModeStartPosition = -1;
     this.dropdownModeType = null; // 'hotkey' or 'textTrigger'
     this.justInsertedPrompt = false;
+    
+    // Placeholder form state
+    this.isInPlaceholderMode = false;
+    this.currentPromptContent = '';
+    this.placeholders = [];
+    this.placeholderValues = {};
+    this.currentPlaceholderIndex = 0;
 
     // Ensure DOM is ready before initializing
     if (document.readyState === 'loading') {
@@ -148,6 +155,35 @@ class AIPromptAutocomplete {
   }
 
   handleKeydown(e) {
+    // Handle placeholder mode first
+    if (this.isInPlaceholderMode) {
+      switch (e.key) {
+        case 'Enter':
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          this.insertPromptWithPlaceholders();
+          return false;
+
+        case 'Tab':
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.shiftKey) {
+            this.navigateToPreviousPlaceholder();
+          } else {
+            this.navigateToNextPlaceholder();
+          }
+          return false;
+
+        case 'Escape':
+          e.preventDefault();
+          e.stopPropagation();
+          this.exitPlaceholderMode();
+          return false;
+      }
+      return;
+    }
+
     // When dropdown is visible, completely intercept ALL Enter events
     if (this.isDropdownVisible && e.key === 'Enter') {
       e.preventDefault();
@@ -204,9 +240,13 @@ class AIPromptAutocomplete {
         case 'Escape':
           e.preventDefault();
           e.stopPropagation();
-          this.hideDropdown();
-          // Reset dropdown mode completely
-          this.resetDropdownMode();
+          if (this.isInPlaceholderMode) {
+            this.exitPlaceholderMode();
+          } else {
+            this.hideDropdown();
+            // Reset dropdown mode completely
+            this.resetDropdownMode();
+          }
           return false;
       }
     }
@@ -315,7 +355,151 @@ class AIPromptAutocomplete {
     this.isInDropdownMode = false;
     this.dropdownModeType = null;
     this.dropdownModeStartPosition = -1;
+    this.resetPlaceholderMode();
     this.hideDropdown();
+  }
+
+  resetPlaceholderMode() {
+    this.isInPlaceholderMode = false;
+    this.currentPromptContent = '';
+    this.placeholders = [];
+    this.placeholderValues = {};
+    this.currentPlaceholderIndex = 0;
+  }
+
+  showPlaceholderForm(promptContent, placeholders) {
+    this.isInPlaceholderMode = true;
+    this.currentPromptContent = promptContent;
+    this.placeholders = placeholders;
+    this.currentPlaceholderIndex = 0;
+    this.placeholderValues = {};
+    
+    // Initialize placeholder values with defaults
+    placeholders.forEach(placeholder => {
+      this.placeholderValues[placeholder.name] = placeholder.defaultValue;
+    });
+    
+    this.renderPlaceholderForm();
+    this.positionDropdown();
+    this.focusCurrentPlaceholder();
+  }
+
+  renderPlaceholderForm() {
+    this.dropdown.innerHTML = '';
+    this.dropdown.className = 'ai-prompt-dropdown placeholder-mode';
+    
+    // Create preview section
+    const previewSection = document.createElement('div');
+    previewSection.className = 'placeholder-preview';
+    
+    const previewLabel = document.createElement('div');
+    previewLabel.className = 'placeholder-preview-label';
+    previewLabel.textContent = 'Preview:';
+    
+    const previewContent = document.createElement('div');
+    previewContent.className = 'placeholder-preview-content';
+    previewContent.id = 'placeholder-preview-text';
+    
+    previewSection.appendChild(previewLabel);
+    previewSection.appendChild(previewContent);
+    this.dropdown.appendChild(previewSection);
+    
+    // Create form section
+    const formSection = document.createElement('div');
+    formSection.className = 'placeholder-form';
+    
+    this.placeholders.forEach((placeholder, index) => {
+      const fieldDiv = document.createElement('div');
+      fieldDiv.className = 'placeholder-field';
+      if (index === this.currentPlaceholderIndex) {
+        fieldDiv.classList.add('active');
+      }
+      
+      const label = document.createElement('label');
+      label.textContent = placeholder.name;
+      label.className = 'placeholder-label';
+      
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'placeholder-input';
+      input.value = this.placeholderValues[placeholder.name] || '';
+      input.placeholder = placeholder.defaultValue ? `Default: ${placeholder.defaultValue}` : 'Enter value...';
+      input.setAttribute('data-placeholder-name', placeholder.name);
+      input.setAttribute('data-placeholder-index', index);
+      
+      fieldDiv.appendChild(label);
+      fieldDiv.appendChild(input);
+      formSection.appendChild(fieldDiv);
+      
+      // Add input event listener for real-time preview
+      input.addEventListener('input', (e) => {
+        this.placeholderValues[placeholder.name] = e.target.value;
+        this.updatePreview();
+      });
+      
+      input.addEventListener('focus', () => {
+        this.currentPlaceholderIndex = index;
+        this.updateActiveField();
+      });
+    });
+    
+    // Add instructions
+    const instructions = document.createElement('div');
+    instructions.className = 'placeholder-instructions';
+    instructions.innerHTML = 'Tab/Shift+Tab to navigate • Enter to insert • Esc to go back';
+    
+    this.dropdown.appendChild(formSection);
+    this.dropdown.appendChild(instructions);
+    
+    this.updatePreview();
+  }
+
+  updatePreview() {
+    const previewElement = document.getElementById('placeholder-preview-text');
+    if (!previewElement) return;
+    
+    let preview = this.currentPromptContent;
+    
+    // Replace placeholders with current values
+    this.placeholders.forEach(placeholder => {
+      const value = this.placeholderValues[placeholder.name] || placeholder.defaultValue || `[${placeholder.name}]`;
+      const regex = placeholder.syntax === 'bracket' 
+        ? new RegExp(`\\[${this.escapeRegex(placeholder.name)}(?::[^\\]]*)?\\]`, 'g')
+        : new RegExp(`\\{${this.escapeRegex(placeholder.name)}(?::[^\\}]*)?\\}`, 'g');
+      preview = preview.replace(regex, value);
+    });
+    
+    // Highlight the current placeholder being edited
+    if (this.placeholders[this.currentPlaceholderIndex]) {
+      const currentPlaceholder = this.placeholders[this.currentPlaceholderIndex];
+      const currentValue = this.placeholderValues[currentPlaceholder.name] || currentPlaceholder.defaultValue || `[${currentPlaceholder.name}]`;
+      
+      // Wrap current placeholder value in a highlight span
+      preview = preview.replace(currentValue, `<span class="current-placeholder">${currentValue}</span>`);
+    }
+    
+    previewElement.innerHTML = preview;
+  }
+
+  updateActiveField() {
+    const fields = this.dropdown.querySelectorAll('.placeholder-field');
+    fields.forEach((field, index) => {
+      field.classList.toggle('active', index === this.currentPlaceholderIndex);
+    });
+  }
+
+  focusCurrentPlaceholder() {
+    setTimeout(() => {
+      const activeInput = this.dropdown.querySelector(`.placeholder-input[data-placeholder-index="${this.currentPlaceholderIndex}"]`);
+      if (activeInput) {
+        activeInput.focus();
+        activeInput.select();
+      }
+    }, 50);
+  }
+
+  escapeRegex(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   matchesHotkey(event, hotkey) {
@@ -575,8 +759,91 @@ class AIPromptAutocomplete {
   insertSelectedPrompt() {
     if (this.selectedIndex >= 0 && this.filteredPrompts[this.selectedIndex]) {
       const prompt = this.filteredPrompts[this.selectedIndex];
-      this.insertPrompt(prompt.content);
+      const placeholders = this.extractPlaceholders(prompt.content);
+      
+      if (placeholders.length > 0) {
+        // Switch to placeholder collection phase
+        this.showPlaceholderForm(prompt.content, placeholders);
+      } else {
+        // No placeholders - insert immediately
+        this.insertPrompt(prompt.content);
+      }
     }
+  }
+
+  extractPlaceholders(content) {
+    const placeholders = [];
+    const seen = new Set();
+    
+    // Match both [name] and [name:default] syntax
+    const bracketRegex = /\[([^:\]]+)(?::([^\]]*))?\]/g;
+    let match;
+    
+    while ((match = bracketRegex.exec(content)) !== null) {
+      const name = match[1].trim();
+      const defaultValue = match[2] || '';
+      const fullMatch = match[0];
+      
+      if (!seen.has(name)) {
+        placeholders.push({ name, defaultValue, syntax: 'bracket', fullMatch });
+        seen.add(name);
+      }
+    }
+    
+    // Match both {name} and {name:default} syntax
+    const braceRegex = /\{([^:\}]+)(?::([^\}]*))?\}/g;
+    
+    while ((match = braceRegex.exec(content)) !== null) {
+      const name = match[1].trim();
+      const defaultValue = match[2] || '';
+      const fullMatch = match[0];
+      
+      if (!seen.has(name)) {
+        placeholders.push({ name, defaultValue, syntax: 'brace', fullMatch });
+        seen.add(name);
+      }
+    }
+    
+    return placeholders;
+  }
+
+  navigateToNextPlaceholder() {
+    if (this.currentPlaceholderIndex < this.placeholders.length - 1) {
+      this.currentPlaceholderIndex++;
+      this.updateActiveField();
+      this.focusCurrentPlaceholder();
+      this.updatePreview();
+    }
+  }
+
+  navigateToPreviousPlaceholder() {
+    if (this.currentPlaceholderIndex > 0) {
+      this.currentPlaceholderIndex--;
+      this.updateActiveField();
+      this.focusCurrentPlaceholder();
+      this.updatePreview();
+    }
+  }
+
+  exitPlaceholderMode() {
+    this.resetPlaceholderMode();
+    // Go back to prompt selection
+    this.filterAndShowPromptsWithBestMatch('');
+  }
+
+  insertPromptWithPlaceholders() {
+    let finalContent = this.currentPromptContent;
+    
+    // Replace all placeholders with their values
+    this.placeholders.forEach(placeholder => {
+      const value = this.placeholderValues[placeholder.name] || placeholder.defaultValue || '';
+      const regex = placeholder.syntax === 'bracket' 
+        ? new RegExp(`\\[${this.escapeRegex(placeholder.name)}(?::[^\\]]*)?\\]`, 'g')
+        : new RegExp(`\\{${this.escapeRegex(placeholder.name)}(?::[^\\}]*)?\\}`, 'g');
+      finalContent = finalContent.replace(regex, value);
+    });
+    
+    this.insertPrompt(finalContent);
   }
 
   insertPrompt(content) {
