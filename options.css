@@ -201,6 +201,12 @@ body {
   word-break: break-word;
 }
 
+.prompt-content-preview {
+  max-height: 60px; /* Approximately 4-5 lines */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .prompt-meta {
   font-size: 12px;
   color: #9ca3af;
@@ -241,10 +247,11 @@ body {
 
 .modal-content {
   background: white;
-  border-radius: 12px;
+  padding: 20px;
+  border-radius: 8px;
   width: 90%;
-  max-width: 500px;
-  max-height: 90%;
+  max-width: 700px;
+  max-height: 85vh;
   overflow-y: auto;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
 }
@@ -253,7 +260,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 20px 0;
+  padding: 0 20px;
   margin-bottom: 20px;
 }
 
@@ -320,14 +327,7 @@ body {
 
 .form-group textarea {
   resize: vertical;
-  min-height: 120px;
-}
-
-.form-group small {
-  display: block;
-  margin-top: 4px;
-  color: #6b7280;
-  font-size: 12px;
+  min-height: 200px;
 }
 
 .form-actions {
@@ -400,11 +400,11 @@ body {
   .container {
     padding: 16px;
   }
-  
+
   .header h1 {
     font-size: 2rem;
   }
-  
+
   .section-header {
     flex-direction: column;
     align-items: stretch;
@@ -414,21 +414,21 @@ body {
   .header-actions {
     justify-content: flex-start;
   }
-  
+
   .prompt-header {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
   }
-  
+
   .prompt-actions {
     align-self: flex-start;
   }
-  
+
   .form-actions {
     flex-direction: column;
   }
-  
+
   .modal-content {
     width: 95%;
     margin: 20px;

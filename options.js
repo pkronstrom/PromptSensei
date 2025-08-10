@@ -71,7 +71,7 @@ class OptionsManager {
         </div>
       </div>
       <div class="prompt-content">
-        ${this.escapeHtml(prompt.content)}
+        ${this.escapeHtml(this.truncateToLines(prompt.content, 4))}
       </div>
       <div class="prompt-meta">
         Created: ${new Date(prompt.created).toLocaleDateString()}
@@ -470,6 +470,14 @@ class OptionsManager {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  truncateToLines(text, maxLines) {
+    const lines = text.split('\n');
+    if (lines.length <= maxLines) {
+      return text;
+    }
+    return lines.slice(0, maxLines).join('\n') + '\n...';
   }
 }
 
