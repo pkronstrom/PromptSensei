@@ -97,12 +97,30 @@ class AIPromptAutocomplete {
   }
 
   isInputElement(element) {
-    return element && (
-      element.tagName === 'INPUT' && 
-      ['text', 'search', 'url', 'email', 'password'].includes(element.type) ||
-      element.tagName === 'TEXTAREA' ||
-      element.contentEditable === 'true'
-    );
+    if (!element) return false;
+    
+    // Check for standard input elements
+    if (element.tagName === 'INPUT' && 
+        ['text', 'search', 'url', 'email', 'password'].includes(element.type)) {
+      return true;
+    }
+    
+    // Check for textarea
+    if (element.tagName === 'TEXTAREA') {
+      return true;
+    }
+    
+    // Check for contentEditable elements (any truthy value, not just 'true')
+    if (element.contentEditable && element.contentEditable !== 'false' && element.contentEditable !== 'inherit') {
+      return true;
+    }
+    
+    // Also check for elements with role="textbox" (common pattern for custom inputs)
+    if (element.getAttribute('role') === 'textbox') {
+      return true;
+    }
+    
+    return false;
   }
 
   handleKeydown(e) {
