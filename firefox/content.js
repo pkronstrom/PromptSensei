@@ -57,7 +57,7 @@ class AIPromptAutocomplete {
         this.handleMessage(message);
       });
 
-      console.log('AI Prompt Extension initialized successfully');
+      
     } catch (error) {
       console.error('Error initializing AI Prompt Extension:', error);
       // Retry initialization after a delay
@@ -94,7 +94,7 @@ class AIPromptAutocomplete {
   handleMessage(message) {
     switch (message.action) {
       case 'showPromptDropdown':
-        console.log('Received showPromptDropdown message');
+        
         if (!this.activeInput) {
           // Try to recover active input from current focus/selection
           const focused = this.getEditableRoot(document.activeElement);
@@ -108,10 +108,10 @@ class AIPromptAutocomplete {
           }
         }
         if (this.activeInput) {
-          console.log('Active input found, activating dropdown mode');
+          
           this.activateDropdownMode('hotkey');
         } else {
-          console.log('No active input for browser hotkey');
+          
         }
         break;
 
@@ -126,7 +126,7 @@ class AIPromptAutocomplete {
     document.addEventListener('focusin', (e) => {
       const editableRoot = this.getEditableRoot(e.target);
       if (editableRoot) {
-        console.log('Input focused:', editableRoot.tagName, editableRoot.contentEditable, editableRoot);
+        
         // If switching to a different input, reset dropdown mode
         if (this.activeInput !== editableRoot && !this.isPlaceholderInput(e.target)) {
           this.resetDropdownMode();
@@ -286,13 +286,13 @@ class AIPromptAutocomplete {
 
     // Handle custom hotkey
     if (this.matchesHotkey(e, this.settings?.hotkey)) {
-      console.log('Hotkey matched, activating dropdown mode');
+      
       e.preventDefault();
       e.stopPropagation();
       if (this.activeInput) {
         this.activateDropdownMode('hotkey');
       } else {
-        console.log('No active input for hotkey');
+        
       }
       return false;
     }
@@ -398,13 +398,13 @@ class AIPromptAutocomplete {
   }
 
   handleDropdownModeInput(value, cursorPos) {
-    console.log('Handle dropdown input:', { value, cursorPos, startPos: this.dropdownModeStartPosition, type: this.dropdownModeType });
+    
     // Track last known cursor position while in dropdown mode (used after placeholder collection)
     this.dropdownModeLastCursorPos = cursorPos;
     
     // If cursor moved before start position, exit dropdown mode
     if (cursorPos < this.dropdownModeStartPosition) {
-      console.log('Cursor before start position, resetting');
+      
       this.resetDropdownMode();
       return;
     }
@@ -416,7 +416,7 @@ class AIPromptAutocomplete {
       const triggerText = value.substring(triggerStart, this.dropdownModeStartPosition);
       
       if (triggerText !== trigger) {
-        console.log('Text trigger removed, resetting');
+        
         this.resetDropdownMode();
         return;
       }
@@ -424,7 +424,6 @@ class AIPromptAutocomplete {
     
     // Extract the filter text from the start position to cursor
     const filterText = value.substring(this.dropdownModeStartPosition, cursorPos);
-    console.log('Filter text extracted:', `"${filterText}"`);
     
     // Filter prompts based on current text (including empty text to show all)
     this.filterAndShowPromptsWithBestMatch(filterText);
@@ -645,11 +644,9 @@ class AIPromptAutocomplete {
     }
 
     const queryLower = query.toLowerCase().trim();
-    console.log('Filtering with query:', `"${query}"`, 'trimmed:', `"${queryLower}"`, 'total prompts:', this.settings.prompts.length);
 
     if (!queryLower) {
       // No query - show all prompts
-      console.log('Empty query, showing all prompts');
       this.filteredPrompts = [...this.settings.prompts];
     } else {
       // Score-based matching for better results
@@ -687,7 +684,7 @@ class AIPromptAutocomplete {
         .map(item => item.prompt);
     }
 
-    console.log('Final filtered prompts count:', this.filteredPrompts.length);
+    
 
     this.createDropdown();
     this.renderDropdown();
@@ -797,16 +794,15 @@ class AIPromptAutocomplete {
             
             // Ensure we have valid input dimensions with retry mechanism
             if (inputRect.width === 0 && inputRect.height === 0) {
-              console.warn('Input element has no dimensions, retrying positioning');
               setTimeout(() => this.positionDropdown(), 50);
               return;
             }
           } catch (error) {
-            console.warn('Error getting input bounds, using fallback position:', error);
+            
             useFallbackPosition = true;
           }
         } else {
-          console.warn('No active input, using fallback position');
+          
           useFallbackPosition = true;
         }
 
