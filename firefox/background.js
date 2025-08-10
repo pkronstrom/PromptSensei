@@ -22,6 +22,41 @@ class AIPromptManager {
         this.triggerPromptDropdown();
       }
     });
+
+    // Create context menu
+    this.createContextMenu();
+  }
+
+  createContextMenu() {
+    browser.contextMenus.create({
+      id: 'save-as-prompt',
+      title: 'Save as AI Prompt',
+      contexts: ['selection']
+    });
+
+    // Listen for context menu clicks
+    browser.contextMenus.onClicked.addListener((info, tab) => {
+      if (info.menuItemId === 'save-as-prompt') {
+        this.handleSaveAsPrompt(info.selectionText);
+      }
+    });
+  }
+
+  async handleSaveAsPrompt(selectedText) {
+    if (!selectedText || selectedText.trim().length === 0) {
+      return;
+    }
+
+    // Store the selected text temporarily
+    await browser.storage.local.set({ 
+      pendingPrompt: {
+        content: selectedText.trim(),
+        timestamp: Date.now()
+      }
+    });
+
+    // Open options page
+    browser.runtime.openOptionsPage();
   }
 
   async getSettings() {
@@ -122,6 +157,14 @@ browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       case 'getPrompts':
         const settings = await promptManager.getSettings();
         return settings.prompts;
+      
+      case 'getPendingPrompt':
+        const result = await browser.storage.local.get(['pendingPrompt']);
+        return result.pendingPrompt || null;
+      
+      case 'clearPendingPrompt':
+        await browser.storage.local.remove(['pendingPrompt']);
+        return { success: true };
       
       default:
         throw new Error(`Unknown action: ${message.action}`);

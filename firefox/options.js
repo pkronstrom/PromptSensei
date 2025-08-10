@@ -12,6 +12,40 @@ class OptionsManager {
     await this.loadSettings();
     this.renderUI();
     this.setupEventListeners();
+    await this.checkForPendingPrompt();
+  }
+
+  async checkForPendingPrompt() {
+    try {
+      const pendingPrompt = await browser.runtime.sendMessage({ action: 'getPendingPrompt' });
+      if (pendingPrompt && pendingPrompt.content) {
+        // Clear the pending prompt
+        await browser.runtime.sendMessage({ action: 'clearPendingPrompt' });
+        
+        // Show the prompt modal with the pending content
+        this.showPromptModalWithContent(pendingPrompt.content);
+      }
+    } catch (error) {
+      console.error('Error checking for pending prompt:', error);
+    }
+  }
+
+  showPromptModalWithContent(content) {
+    this.editingPromptId = null;
+    
+    const modal = document.getElementById('prompt-modal');
+    const title = document.getElementById('modal-title');
+    const nameInput = document.getElementById('prompt-name');
+    const contentInput = document.getElementById('prompt-content');
+
+    title.textContent = 'Save Selected Text as Prompt';
+    title.setAttribute('data-context', 'selection');
+    nameInput.value = '';
+    contentInput.value = content;
+
+    this.updateCharacterCount(contentInput.value.length);
+    modal.style.display = 'flex';
+    nameInput.focus();
   }
 
   async loadSettings() {
@@ -248,6 +282,7 @@ class OptionsManager {
       contentInput.value = '';
     }
 
+    title.removeAttribute('data-context');
     this.updateCharacterCount(contentInput.value.length);
     modal.style.display = 'flex';
     nameInput.focus();

@@ -265,9 +265,17 @@ body {
 }
 
 .modal-header h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #111827;
+  margin: 0 0 20px 0;
+  color: #1f2937;
+}
+
+.modal h3[data-context="selection"] {
+  color: #059669;
+}
+
+.modal h3[data-context="selection"]::before {
+  content: "📝 ";
+  margin-right: 8px;
 }
 
 .close-btn {
