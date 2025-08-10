@@ -114,21 +114,27 @@ class AIPromptAutocomplete {
       if (this.isInputElement(e.target)) {
         console.log('Input focused:', e.target.tagName, e.target.contentEditable, e.target);
         // If switching to a different input, reset dropdown mode
-        if (this.activeInput !== e.target) {
+        if (this.activeInput !== e.target && !this.isPlaceholderInput(e.target)) {
           this.resetDropdownMode();
         }
-        this.activeInput = e.target;
+        
+        // Only set activeInput if it's not a placeholder input
+        if (!this.isPlaceholderInput(e.target)) {
+          this.activeInput = e.target;
+        }
       }
     });
 
     document.addEventListener('focusout', (e) => {
-      // Delay to allow dropdown interaction
-      setTimeout(() => {
-        if (this.activeInput === e.target && !this.isDropdownFocused() && !this.isInPlaceholderMode) {
-          this.resetDropdownMode();
-          this.activeInput = null;
-        }
-      }, 100);
+      // Only handle focusout for the main input, and only if we're not in placeholder mode
+      if (e.target === this.activeInput && !this.isInPlaceholderMode) {
+        setTimeout(() => {
+          if (!this.shouldKeepDropdownOpen()) {
+            this.resetDropdownMode();
+            this.activeInput = null;
+          }
+        }, 100);
+      }
     });
 
     // Handle keyboard events with capture to intercept before any other handlers
@@ -137,7 +143,7 @@ class AIPromptAutocomplete {
     }, true); // Use capture phase
 
     document.addEventListener('input', (e) => {
-      if (this.isInputElement(e.target)) {
+      if (this.isInputElement(e.target) && !this.isPlaceholderInput(e.target)) {
         this.handleInput(e);
       }
     });
@@ -391,6 +397,7 @@ class AIPromptAutocomplete {
   }
 
   showPlaceholderForm(promptContent, placeholders) {
+    // Set placeholder mode first to prevent focus handling issues
     this.isInPlaceholderMode = true;
     this.currentPromptContent = promptContent;
     this.placeholders = placeholders;
@@ -404,7 +411,11 @@ class AIPromptAutocomplete {
     
     this.renderPlaceholderForm();
     this.positionDropdown();
-    this.focusCurrentPlaceholder();
+    
+    // Focus after a brief delay to ensure DOM is ready
+    setTimeout(() => {
+      this.focusCurrentPlaceholder();
+    }, 10);
   }
 
   renderPlaceholderForm() {
@@ -512,13 +523,14 @@ class AIPromptAutocomplete {
   }
 
   focusCurrentPlaceholder() {
-    setTimeout(() => {
+    // Use requestAnimationFrame for smoother focus transition
+    requestAnimationFrame(() => {
       const activeInput = this.dropdown.querySelector(`.placeholder-input[data-placeholder-index="${this.currentPlaceholderIndex}"]`);
       if (activeInput) {
         activeInput.focus();
         activeInput.select();
       }
-    }, 50);
+    });
   }
 
   escapeRegex(string) {
@@ -990,18 +1002,22 @@ class AIPromptAutocomplete {
     this.filteredPrompts = [];
   }
 
-  isDropdownFocused() {
+  isPlaceholderInput(element) {
+    return element && element.classList && element.classList.contains('placeholder-input');
+  }
+
+  shouldKeepDropdownOpen() {
     if (!this.dropdown) return false;
     
     const activeElement = document.activeElement;
     
-    // Check if dropdown or any of its contents are focused
+    // Keep open if dropdown or its contents are focused
     if (this.dropdown.contains(activeElement)) {
       return true;
     }
     
-    // Check if any placeholder input is focused (they might be outside dropdown hierarchy temporarily)
-    if (this.isInPlaceholderMode && activeElement && activeElement.classList.contains('placeholder-input')) {
+    // Keep open if we're in placeholder mode
+    if (this.isInPlaceholderMode) {
       return true;
     }
     
