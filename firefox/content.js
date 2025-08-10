@@ -126,8 +126,13 @@ class AIPromptAutocomplete {
     });
 
     document.addEventListener('focusout', (e) => {
-      // Only handle focusout for the main input, and only if we're not in placeholder mode
-      if (e.target === this.activeInput && !this.isInPlaceholderMode) {
+      // Don't handle focusout when in placeholder mode at all
+      if (this.isInPlaceholderMode) {
+        return;
+      }
+      
+      // Only handle focusout for the main input
+      if (e.target === this.activeInput) {
         setTimeout(() => {
           if (!this.shouldKeepDropdownOpen()) {
             this.resetDropdownMode();
@@ -409,13 +414,18 @@ class AIPromptAutocomplete {
       this.placeholderValues[placeholder.name] = placeholder.defaultValue;
     });
     
+    // Temporarily disable focus event handling
+    const originalHandleFocusOut = this.handleFocusOut;
+    this.handleFocusOut = () => {};
+    
     this.renderPlaceholderForm();
     this.positionDropdown();
     
-    // Focus after a brief delay to ensure DOM is ready
+    // Re-enable focus handling and focus after rendering is complete
     setTimeout(() => {
+      this.handleFocusOut = originalHandleFocusOut;
       this.focusCurrentPlaceholder();
-    }, 10);
+    }, 50);
   }
 
   renderPlaceholderForm() {
@@ -523,13 +533,21 @@ class AIPromptAutocomplete {
   }
 
   focusCurrentPlaceholder() {
-    // Use requestAnimationFrame for smoother focus transition
+    // Use double requestAnimationFrame for more stable focus
     requestAnimationFrame(() => {
-      const activeInput = this.dropdown.querySelector(`.placeholder-input[data-placeholder-index="${this.currentPlaceholderIndex}"]`);
-      if (activeInput) {
-        activeInput.focus();
-        activeInput.select();
-      }
+      requestAnimationFrame(() => {
+        const activeInput = this.dropdown.querySelector(`.placeholder-input[data-placeholder-index="${this.currentPlaceholderIndex}"]`);
+        if (activeInput) {
+          // Ensure the input is ready for focus
+          if (activeInput.offsetParent !== null) {
+            activeInput.focus();
+            activeInput.select();
+          } else {
+            // Retry if element isn't rendered yet
+            setTimeout(() => this.focusCurrentPlaceholder(), 10);
+          }
+        }
+      });
     });
   }
 
@@ -715,58 +733,54 @@ class AIPromptAutocomplete {
   positionDropdown() {
     if (!this.activeInput || !this.dropdown) return;
 
-    // Use requestAnimationFrame to ensure DOM has been painted
+    // Use double requestAnimationFrame for better stability
     requestAnimationFrame(() => {
-      // Force dropdown to be visible for measurement
-      this.dropdown.style.visibility = 'hidden';
-      this.dropdown.style.display = 'block';
-      this.dropdown.style.position = 'absolute';
+      requestAnimationFrame(() => {
+        // Force dropdown to be visible for measurement
+        this.dropdown.style.visibility = 'hidden';
+        this.dropdown.style.display = 'block';
+        this.dropdown.style.position = 'absolute';
 
-      const inputRect = this.activeInput.getBoundingClientRect();
-      
-      // Ensure we have valid input dimensions
-      if (inputRect.width === 0 && inputRect.height === 0) {
-        console.warn('Input element has no dimensions, delaying positioning');
-        setTimeout(() => this.positionDropdown(), 100);
-        return;
-      }
+        const inputRect = this.activeInput.getBoundingClientRect();
+        
+        // Ensure we have valid input dimensions with retry mechanism
+        if (inputRect.width === 0 && inputRect.height === 0) {
+          console.warn('Input element has no dimensions, retrying positioning');
+          setTimeout(() => this.positionDropdown(), 50);
+          return;
+        }
 
-      const dropdownHeight = this.dropdown.offsetHeight;
-      const dropdownWidth = this.dropdown.offsetWidth;
-      const viewportHeight = window.innerHeight;
-      const viewportWidth = window.innerWidth;
+        // Get dropdown dimensions after it's rendered
+        const dropdownHeight = this.dropdown.offsetHeight;
+        const dropdownWidth = this.dropdown.offsetWidth;
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
 
-      console.log('Positioning dropdown:', {
-        inputType: this.activeInput.tagName,
-        contentEditable: this.activeInput.contentEditable,
-        inputRect,
-        dropdownSize: { width: dropdownWidth, height: dropdownHeight }
+        // Calculate optimal position
+        let top = inputRect.bottom + window.scrollY + 4;
+        let left = inputRect.left + window.scrollX;
+
+        // If dropdown would be cut off at bottom, position above
+        if (inputRect.bottom + dropdownHeight + 10 > viewportHeight) {
+          top = inputRect.top + window.scrollY - dropdownHeight - 4;
+        }
+
+        // If dropdown would be cut off at right, align to right edge of input
+        if (left + dropdownWidth > viewportWidth) {
+          left = inputRect.right + window.scrollX - dropdownWidth;
+        }
+
+        // Ensure minimum left position
+        left = Math.max(10, left);
+
+        this.dropdown.style.top = `${top}px`;
+        this.dropdown.style.left = `${left}px`;
+        this.dropdown.style.width = `${Math.max(300, inputRect.width)}px`;
+        this.dropdown.style.zIndex = '10000';
+        
+        // Make dropdown visible again
+        this.dropdown.style.visibility = 'visible';
       });
-
-      // Calculate optimal position
-      let top = inputRect.bottom + window.scrollY + 4;
-      let left = inputRect.left + window.scrollX;
-
-      // If dropdown would be cut off at bottom, position above
-      if (inputRect.bottom + dropdownHeight + 10 > viewportHeight) {
-        top = inputRect.top + window.scrollY - dropdownHeight - 4;
-      }
-
-      // If dropdown would be cut off at right, align to right edge of input
-      if (left + dropdownWidth > viewportWidth) {
-        left = inputRect.right + window.scrollX - dropdownWidth;
-      }
-
-      // Ensure minimum left position
-      left = Math.max(10, left);
-
-      this.dropdown.style.top = `${top}px`;
-      this.dropdown.style.left = `${left}px`;
-      this.dropdown.style.width = `${Math.max(300, inputRect.width)}px`;
-      this.dropdown.style.zIndex = '10000';
-      
-      // Make dropdown visible again
-      this.dropdown.style.visibility = 'visible';
     });
   }
 
@@ -1009,15 +1023,15 @@ class AIPromptAutocomplete {
   shouldKeepDropdownOpen() {
     if (!this.dropdown) return false;
     
+    // Always keep open if we're in placeholder mode
+    if (this.isInPlaceholderMode) {
+      return true;
+    }
+    
     const activeElement = document.activeElement;
     
     // Keep open if dropdown or its contents are focused
     if (this.dropdown.contains(activeElement)) {
-      return true;
-    }
-    
-    // Keep open if we're in placeholder mode
-    if (this.isInPlaceholderMode) {
       return true;
     }
     
