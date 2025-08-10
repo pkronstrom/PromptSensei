@@ -73,6 +73,11 @@ No external services, databases, or third-party APIs are required. The extension
 - Improved text trigger state management
 - Enhanced error handling for import/export operations
 - Better focus management after prompt insertion
-- Added `showDropdownWithFiltering()` method for hotkey-triggered filtering
-- Enhanced prompt insertion logic to handle both text trigger and hotkey filtering scenarios
-- Fixed ESC key to reset `textTriggerActive` and `textTriggerPosition` states
+- **Major Architecture Refactor (August 10, 2025)**: Unified dropdown mode system
+  - Replaced separate text trigger and hotkey handling with unified `isInDropdownMode` state
+  - Added `activateDropdownMode()` method for consistent activation from both triggers
+  - Implemented `handleDropdownModeInput()` for real-time filtering after activation
+  - Added `resetDropdownMode()` for proper state cleanup on ESC or focus change
+  - Enhanced initialization with DOM ready checks and retry logic to fix startup delays
+  - Both hotkey and text trigger now use the same filtering mechanism
+  - Magic word state properly resets after prompt insertion or ESC key

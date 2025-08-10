@@ -7,24 +7,48 @@ class AIPromptAutocomplete {
     this.selectedIndex = -1;
     this.filteredPrompts = [];
     this.isDropdownVisible = false;
-    this.textTriggerActive = false;
-    this.textTriggerPosition = -1;
+    this.isInDropdownMode = false; // Unified mode for both hotkey and text trigger
+    this.dropdownModeStartPosition = -1;
+    this.dropdownModeType = null; // 'hotkey' or 'textTrigger'
     this.justInsertedPrompt = false;
 
-    this.init();
+    // Ensure DOM is ready before initializing
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => this.init());
+    } else {
+      // DOM already loaded, init immediately
+      this.init();
+    }
   }
 
   async init() {
-    // Load settings from background
-    this.settings = await this.sendMessage({ action: 'getSettings' });
+    try {
+      // Load settings from background with retry logic
+      let retries = 3;
+      while (retries > 0 && !this.settings) {
+        this.settings = await this.sendMessage({ action: 'getSettings' });
+        if (!this.settings) {
+          retries--;
+          if (retries > 0) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+      }
 
-    // Set up event listeners
-    this.setupEventListeners();
+      // Set up event listeners
+      this.setupEventListeners();
 
-    // Listen for messages from background script
-    browser.runtime.onMessage.addListener((message) => {
-      this.handleMessage(message);
-    });
+      // Listen for messages from background script
+      browser.runtime.onMessage.addListener((message) => {
+        this.handleMessage(message);
+      });
+
+      console.log('AI Prompt Extension initialized successfully');
+    } catch (error) {
+      console.error('Error initializing AI Prompt Extension:', error);
+      // Retry initialization after a delay
+      setTimeout(() => this.init(), 500);
+    }
   }
 
   async sendMessage(message) {
@@ -40,7 +64,7 @@ class AIPromptAutocomplete {
     switch (message.action) {
       case 'showPromptDropdown':
         if (this.activeInput) {
-          this.showDropdown();
+          this.activateDropdownMode('hotkey');
         }
         break;
 
@@ -54,6 +78,10 @@ class AIPromptAutocomplete {
     // Monitor all input fields
     document.addEventListener('focusin', (e) => {
       if (this.isInputElement(e.target)) {
+        // If switching to a different input, reset dropdown mode
+        if (this.activeInput !== e.target) {
+          this.resetDropdownMode();
+        }
         this.activeInput = e.target;
       }
     });
@@ -62,7 +90,7 @@ class AIPromptAutocomplete {
       // Delay to allow dropdown interaction
       setTimeout(() => {
         if (this.activeInput === e.target && !this.isDropdownFocused()) {
-          this.hideDropdown();
+          this.resetDropdownMode();
           this.activeInput = null;
         }
       }, 100);
@@ -145,7 +173,7 @@ class AIPromptAutocomplete {
       e.preventDefault();
       e.stopPropagation();
       if (this.activeInput) {
-        this.showDropdownWithFiltering();
+        this.activateDropdownMode('hotkey');
       }
       return false;
     }
@@ -169,9 +197,8 @@ class AIPromptAutocomplete {
           e.preventDefault();
           e.stopPropagation();
           this.hideDropdown();
-          // Reset text trigger state so dropdown won't show again without full keyword
-          this.textTriggerActive = false;
-          this.textTriggerPosition = -1;
+          // Reset dropdown mode completely
+          this.resetDropdownMode();
           return false;
       }
     }
@@ -184,8 +211,13 @@ class AIPromptAutocomplete {
     const value = this.getInputValue(input);
     const cursorPos = this.getCursorPosition(input);
 
-    // Check for text trigger
-    this.checkTextTrigger(value, cursorPos);
+    if (this.isInDropdownMode) {
+      // In dropdown mode - filter prompts based on current input
+      this.handleDropdownModeInput(value, cursorPos);
+    } else {
+      // Check for text trigger to activate dropdown mode
+      this.checkTextTrigger(value, cursorPos);
+    }
   }
 
   checkTextTrigger(value, cursorPos) {
@@ -196,24 +228,78 @@ class AIPromptAutocomplete {
     const triggerIndex = beforeCursor.lastIndexOf(trigger);
 
     if (triggerIndex !== -1) {
-      const afterTrigger = beforeCursor.substring(triggerIndex + trigger.length);
-
       // Check if trigger is at word boundary
       const isValidTrigger = triggerIndex === 0 || /\s/.test(beforeCursor[triggerIndex - 1]);
 
       if (isValidTrigger) {
-        this.textTriggerActive = true;
-        this.textTriggerPosition = triggerIndex;
-        this.filterAndShowPrompts(afterTrigger.trim());
+        // Activate dropdown mode with text trigger
+        this.activateDropdownMode('textTrigger', triggerIndex);
         return;
       }
     }
+  }
 
-    // Hide dropdown if trigger is not found
-    if (this.textTriggerActive) {
-      this.textTriggerActive = false;
-      this.hideDropdown();
+  activateDropdownMode(type, startPosition = null) {
+    if (!this.settings?.prompts?.length) {
+      this.showNoPromptsMessage();
+      return;
     }
+
+    this.isInDropdownMode = true;
+    this.dropdownModeType = type;
+    
+    if (type === 'hotkey') {
+      const cursorPos = this.getCursorPosition(this.activeInput);
+      const value = this.getInputValue(this.activeInput);
+      const beforeCursor = value.substring(0, cursorPos);
+      
+      // For hotkey, start filtering from the last word
+      const lastSpaceIndex = beforeCursor.lastIndexOf(' ');
+      this.dropdownModeStartPosition = lastSpaceIndex + 1;
+      
+      // Get existing text to filter with
+      const filterText = beforeCursor.substring(this.dropdownModeStartPosition);
+      this.filterAndShowPrompts(filterText);
+    } else if (type === 'textTrigger') {
+      this.dropdownModeStartPosition = startPosition + this.settings.textTrigger.length;
+      
+      // Get text after trigger for filtering
+      const value = this.getInputValue(this.activeInput);
+      const cursorPos = this.getCursorPosition(this.activeInput);
+      const afterTrigger = value.substring(this.dropdownModeStartPosition, cursorPos);
+      this.filterAndShowPrompts(afterTrigger);
+    }
+  }
+
+  handleDropdownModeInput(value, cursorPos) {
+    // Extract the filter text from the start position to cursor
+    const filterText = value.substring(this.dropdownModeStartPosition, cursorPos);
+    
+    // If cursor moved before start position, exit dropdown mode
+    if (cursorPos < this.dropdownModeStartPosition) {
+      this.resetDropdownMode();
+      return;
+    }
+    
+    // For text trigger, also check if the trigger was removed
+    if (this.dropdownModeType === 'textTrigger') {
+      const trigger = this.settings.textTrigger;
+      const beforeStart = value.substring(0, this.dropdownModeStartPosition - trigger.length);
+      if (!beforeStart.endsWith(trigger)) {
+        this.resetDropdownMode();
+        return;
+      }
+    }
+    
+    // Filter prompts based on current text
+    this.filterAndShowPrompts(filterText);
+  }
+
+  resetDropdownMode() {
+    this.isInDropdownMode = false;
+    this.dropdownModeType = null;
+    this.dropdownModeStartPosition = -1;
+    this.hideDropdown();
   }
 
   matchesHotkey(event, hotkey) {
@@ -231,50 +317,7 @@ class AIPromptAutocomplete {
     return eventKey === mainKey && hasCtrl && hasShift && hasAlt;
   }
 
-  async showDropdown() {
-    if (!this.settings?.prompts?.length) {
-      this.showNoPromptsMessage();
-      return;
-    }
 
-    this.filteredPrompts = [...this.settings.prompts];
-    this.createDropdown();
-    this.renderDropdown();
-    this.positionDropdown();
-    this.isDropdownVisible = true;
-  }
-
-  async showDropdownWithFiltering() {
-    if (!this.settings?.prompts?.length) {
-      this.showNoPromptsMessage();
-      return;
-    }
-
-    if (!this.activeInput) return;
-
-    // Get current input value and cursor position to check for existing content
-    const currentValue = this.getInputValue(this.activeInput);
-    const cursorPos = this.getCursorPosition(this.activeInput);
-    
-    // Get text before cursor that could be used for filtering
-    const beforeCursor = currentValue.substring(0, cursorPos);
-    
-    // Look for the last word before cursor (up to first space or beginning)
-    const lastSpaceIndex = beforeCursor.lastIndexOf(' ');
-    const filterQuery = beforeCursor.substring(lastSpaceIndex + 1);
-    
-    // If there's text that could be used for filtering, use it
-    if (filterQuery.trim()) {
-      this.filterAndShowPrompts(filterQuery);
-    } else {
-      // Otherwise show all prompts
-      this.filteredPrompts = [...this.settings.prompts];
-      this.createDropdown();
-      this.renderDropdown();
-      this.positionDropdown();
-      this.isDropdownVisible = true;
-    }
-  }
 
   filterAndShowPrompts(query) {
     if (!this.settings?.prompts?.length) {
@@ -440,31 +483,27 @@ class AIPromptAutocomplete {
 
     let newValue, newCursorPos;
 
-    if (this.textTriggerActive && this.textTriggerPosition >= 0) {
-      // Replace text trigger and any text after it up to cursor
-      const beforeTrigger = currentValue.substring(0, this.textTriggerPosition);
+    if (this.isInDropdownMode && this.dropdownModeStartPosition >= 0) {
+      // Replace from start position to cursor with the prompt content
+      const beforeStart = currentValue.substring(0, this.dropdownModeStartPosition);
       const afterCursor = currentValue.substring(cursorPos);
-      newValue = beforeTrigger + processedContent + afterCursor;
-      newCursorPos = beforeTrigger.length + processedContent.length;
-    } else {
-      // Check if we're in hotkey filtering mode (dropdown was triggered by hotkey and has filtered content)
-      const beforeCursor = currentValue.substring(0, cursorPos);
-      const lastSpaceIndex = beforeCursor.lastIndexOf(' ');
-      const possibleFilterText = beforeCursor.substring(lastSpaceIndex + 1);
       
-      // If the current filtered prompts don't include all prompts, we're in filtering mode
-      // and should replace the filter text
-      if (this.filteredPrompts.length < this.settings.prompts.length && possibleFilterText.trim()) {
-        const beforeFilter = currentValue.substring(0, lastSpaceIndex + 1);
-        const afterCursor = currentValue.substring(cursorPos);
-        newValue = beforeFilter + processedContent + afterCursor;
-        newCursorPos = beforeFilter.length + processedContent.length;
+      // For text trigger mode, we need to remove the trigger itself
+      if (this.dropdownModeType === 'textTrigger') {
+        const triggerStart = this.dropdownModeStartPosition - this.settings.textTrigger.length;
+        newValue = currentValue.substring(0, triggerStart) + processedContent + afterCursor;
+        newCursorPos = triggerStart + processedContent.length;
       } else {
-        // Insert at current cursor position (normal hotkey or no filtering)
-        const afterCursor = currentValue.substring(cursorPos);
-        newValue = beforeCursor + processedContent + afterCursor;
-        newCursorPos = cursorPos + processedContent.length;
+        // For hotkey mode, just replace the filter text
+        newValue = beforeStart + processedContent + afterCursor;
+        newCursorPos = beforeStart.length + processedContent.length;
       }
+    } else {
+      // Fallback: insert at current cursor position
+      const beforeCursor = currentValue.substring(0, cursorPos);
+      const afterCursor = currentValue.substring(cursorPos);
+      newValue = beforeCursor + processedContent + afterCursor;
+      newCursorPos = cursorPos + processedContent.length;
     }
 
     this.setInputValue(this.activeInput, newValue);
@@ -479,9 +518,8 @@ class AIPromptAutocomplete {
       this.activeInput.dispatchEvent(inputEvent);
     }, 50);
 
-    this.hideDropdown();
-    this.textTriggerActive = false;
-    this.textTriggerPosition = -1;
+    // Reset dropdown mode after insertion
+    this.resetDropdownMode();
 
     // Clear the insertion flag after a longer delay to prevent accidental submissions
     setTimeout(() => {
@@ -536,7 +574,6 @@ class AIPromptAutocomplete {
     this.isDropdownVisible = false;
     this.selectedIndex = -1;
     this.filteredPrompts = [];
-    // Keep text trigger state until prompt is inserted or focus is lost
   }
 
   isDropdownFocused() {

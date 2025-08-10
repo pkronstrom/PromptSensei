@@ -78,19 +78,27 @@
     </div>
 
     <div class="test-section">
-        <h2>Feature Test 1: Hotkey with Filtering</h2>
+        <h2>✅ Feature Test 1: Unified Hotkey with Filtering</h2>
         <div class="feature-test">
-            <strong>Test:</strong> Type some text, then press the hotkey. The dropdown should filter prompts based on the text before cursor.
+            <strong>Test:</strong> Type 'hello' then press Ctrl+Shift+P. The dropdown should show filtered prompts. Continue typing to filter further!
         </div>
-        <input type="text" placeholder="Type 'hello' then press Ctrl+Shift+P to test filtering...">
+        <input type="text" placeholder="Type 'hello' then press Ctrl+Shift+P and continue typing...">
     </div>
 
     <div class="test-section">
-        <h2>Feature Test 2: ESC Key Behavior</h2>
+        <h2>✅ Feature Test 2: Improved ESC Key Behavior</h2>
         <div class="feature-test">
-            <strong>Test:</strong> Type 'AI:' to trigger dropdown, then press ESC. The dropdown should close and NOT reopen when typing more text unless you type the full 'AI:' trigger again.
+            <strong>Test:</strong> Type 'AI:' to activate dropdown mode, then press ESC. Mode is reset - typing more won't trigger dropdown until you type 'AI:' again.
         </div>
-        <input type="text" placeholder="Type 'AI:' then press ESC, then type more text...">
+        <input type="text" placeholder="Type 'AI:' then press ESC, then try typing more...">
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Feature Test 3: Magic Word Reset</h2>
+        <div class="feature-test">
+            <strong>Test:</strong> Type 'AI: test' and select a prompt. The magic word state is reset - typing more won't trigger dropdown unless you type 'AI:' again.
+        </div>
+        <input type="text" placeholder="Type 'AI: test', select prompt, then continue typing...">
     </div>
 
     <div class="test-section">
