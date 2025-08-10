@@ -10,17 +10,17 @@ class AIPromptAutocomplete {
     this.textTriggerActive = false;
     this.textTriggerPosition = -1;
     this.justInsertedPrompt = false;
-    
+
     this.init();
   }
 
   async init() {
     // Load settings from background
     this.settings = await this.sendMessage({ action: 'getSettings' });
-    
+
     // Set up event listeners
     this.setupEventListeners();
-    
+
     // Listen for messages from background script
     browser.runtime.onMessage.addListener((message) => {
       this.handleMessage(message);
@@ -43,7 +43,7 @@ class AIPromptAutocomplete {
           this.showDropdown();
         }
         break;
-      
+
       case 'settingsUpdated':
         this.settings = message.settings;
         break;
@@ -89,28 +89,28 @@ class AIPromptAutocomplete {
 
   isInputElement(element) {
     if (!element) return false;
-    
+
     // Check for standard input elements
     if (element.tagName === 'INPUT' && 
         ['text', 'search', 'url', 'email', 'password'].includes(element.type)) {
       return true;
     }
-    
+
     // Check for textarea
     if (element.tagName === 'TEXTAREA') {
       return true;
     }
-    
+
     // Check for contentEditable elements (any truthy value, not just 'true')
     if (element.contentEditable && element.contentEditable !== 'false' && element.contentEditable !== 'inherit') {
       return true;
     }
-    
+
     // Also check for elements with role="textbox" (common pattern for custom inputs)
     if (element.getAttribute('role') === 'textbox') {
       return true;
     }
-    
+
     return false;
   }
 
@@ -120,7 +120,7 @@ class AIPromptAutocomplete {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      
+
       if (this.selectedIndex >= 0 && this.filteredPrompts[this.selectedIndex]) {
         this.insertSelectedPrompt();
       } else if (this.filteredPrompts.length > 0) {
@@ -158,13 +158,13 @@ class AIPromptAutocomplete {
           e.stopPropagation();
           this.selectNext();
           return false;
-        
+
         case 'ArrowUp':
           e.preventDefault();
           e.stopPropagation();
           this.selectPrevious();
           return false;
-        
+
         case 'Escape':
           e.preventDefault();
           e.stopPropagation();
@@ -180,7 +180,7 @@ class AIPromptAutocomplete {
     const input = e.target;
     const value = this.getInputValue(input);
     const cursorPos = this.getCursorPosition(input);
-    
+
     // Check for text trigger
     this.checkTextTrigger(value, cursorPos);
   }
@@ -191,13 +191,13 @@ class AIPromptAutocomplete {
 
     const beforeCursor = value.substring(0, cursorPos);
     const triggerIndex = beforeCursor.lastIndexOf(trigger);
-    
+
     if (triggerIndex !== -1) {
       const afterTrigger = beforeCursor.substring(triggerIndex + trigger.length);
-      
+
       // Check if trigger is at word boundary
       const isValidTrigger = triggerIndex === 0 || /\s/.test(beforeCursor[triggerIndex - 1]);
-      
+
       if (isValidTrigger) {
         this.textTriggerActive = true;
         this.textTriggerPosition = triggerIndex;
@@ -205,7 +205,7 @@ class AIPromptAutocomplete {
         return;
       }
     }
-    
+
     // Hide dropdown if trigger is not found
     if (this.textTriggerActive) {
       this.textTriggerActive = false;
@@ -215,16 +215,16 @@ class AIPromptAutocomplete {
 
   matchesHotkey(event, hotkey) {
     if (!hotkey) return false;
-    
+
     const keys = hotkey.split('+').map(k => k.trim());
     const modifiers = keys.slice(0, -1).map(k => k.toLowerCase());
     const mainKey = keys[keys.length - 1].toLowerCase();
-    
+
     const eventKey = event.key.toLowerCase();
     const hasCtrl = modifiers.includes('ctrl') ? event.ctrlKey : !event.ctrlKey;
     const hasShift = modifiers.includes('shift') ? event.shiftKey : !event.shiftKey;
     const hasAlt = modifiers.includes('alt') ? event.altKey : !event.altKey;
-    
+
     return eventKey === mainKey && hasCtrl && hasShift && hasAlt;
   }
 
@@ -286,14 +286,14 @@ class AIPromptAutocomplete {
       item.className = 'ai-prompt-item';
       item.setAttribute('role', 'option');
       item.setAttribute('data-index', index);
-      
+
       const name = document.createElement('div');
       name.className = 'ai-prompt-name';
       name.textContent = prompt.name;
-      
+
       const preview = document.createElement('div');
       preview.className = 'ai-prompt-preview';
-      
+
       // Clean up the content: trim, remove empty lines, and normalize whitespace
       const cleanContent = prompt.content
         .split('\n')
@@ -302,27 +302,27 @@ class AIPromptAutocomplete {
         .join(' ')
         .replace(/\s+/g, ' ')
         .trim();
-      
+
       const maxLength = 100;
       const truncated = cleanContent.length > maxLength 
         ? cleanContent.substring(0, maxLength).trim() + '...'
         : cleanContent;
-      
+
       preview.textContent = truncated;
-      
+
       item.appendChild(name);
       item.appendChild(preview);
-      
+
       item.addEventListener('click', () => {
         this.selectedIndex = index;
         this.insertSelectedPrompt();
       });
-      
+
       item.addEventListener('mouseenter', () => {
         this.selectedIndex = index;
         this.updateSelection();
       });
-      
+
       this.dropdown.appendChild(item);
     });
   }
@@ -333,15 +333,15 @@ class AIPromptAutocomplete {
     const inputRect = this.activeInput.getBoundingClientRect();
     const dropdownHeight = this.dropdown.offsetHeight;
     const viewportHeight = window.innerHeight;
-    
+
     // Position below input by default
     let top = inputRect.bottom + window.scrollY + 2;
-    
+
     // If dropdown would be cut off at bottom, position above
     if (inputRect.bottom + dropdownHeight > viewportHeight) {
       top = inputRect.top + window.scrollY - dropdownHeight - 2;
     }
-    
+
     this.dropdown.style.position = 'absolute';
     this.dropdown.style.top = `${top}px`;
     this.dropdown.style.left = `${inputRect.left + window.scrollX}px`;
@@ -371,7 +371,7 @@ class AIPromptAutocomplete {
     items.forEach((item, index) => {
       item.classList.toggle('selected', index === this.selectedIndex);
     });
-    
+
     // Scroll selected item into view
     if (this.selectedIndex >= 0 && items[this.selectedIndex]) {
       items[this.selectedIndex].scrollIntoView({ 
@@ -402,9 +402,9 @@ class AIPromptAutocomplete {
 
     const currentValue = this.getInputValue(this.activeInput);
     const cursorPos = this.getCursorPosition(this.activeInput);
-    
+
     let newValue, newCursorPos;
-    
+
     if (this.textTriggerActive && this.textTriggerPosition >= 0) {
       // Replace text trigger and any text after it up to cursor
       const beforeTrigger = currentValue.substring(0, this.textTriggerPosition);
@@ -418,28 +418,28 @@ class AIPromptAutocomplete {
       newValue = beforeCursor + processedContent + afterCursor;
       newCursorPos = cursorPos + processedContent.length;
     }
-    
+
     this.setInputValue(this.activeInput, newValue);
     this.setCursorPosition(this.activeInput, newCursorPos);
-    
+
     // Set flag to prevent form submission immediately after insertion
     this.justInsertedPrompt = true;
-    
+
     // Trigger input event for frameworks that rely on it (after a small delay)
     setTimeout(() => {
       const inputEvent = new Event('input', { bubbles: true });
       this.activeInput.dispatchEvent(inputEvent);
     }, 50);
-    
+
     this.hideDropdown();
     this.textTriggerActive = false;
     this.textTriggerPosition = -1;
-    
+
     // Clear the insertion flag after a longer delay to prevent accidental submissions
     setTimeout(() => {
       this.justInsertedPrompt = false;
     }, 500);
-    
+
     // Add small delay to ensure form submission is prevented
     setTimeout(() => {
       this.activeInput.focus();
@@ -504,7 +504,7 @@ class AIPromptAutocomplete {
     `;
     this.positionDropdown();
     this.isDropdownVisible = true;
-    
+
     // Auto-hide after 3 seconds
     setTimeout(() => {
       this.hideDropdown();
