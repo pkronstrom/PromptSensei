@@ -378,6 +378,15 @@ class AIPromptAutocomplete {
   insertPrompt(content) {
     if (!this.activeInput) return;
 
+    // For single-line inputs, convert newlines to spaces
+    // For multi-line inputs (textarea, contentEditable), preserve newlines
+    let processedContent = content;
+    if (this.activeInput.tagName === 'INPUT') {
+      // Single-line input field - convert newlines to spaces
+      processedContent = content.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    // For textarea and contentEditable, keep original content with newlines
+
     const currentValue = this.getInputValue(this.activeInput);
     const cursorPos = this.getCursorPosition(this.activeInput);
     
@@ -387,14 +396,14 @@ class AIPromptAutocomplete {
       // Replace text trigger and any text after it up to cursor
       const beforeTrigger = currentValue.substring(0, this.textTriggerPosition);
       const afterCursor = currentValue.substring(cursorPos);
-      newValue = beforeTrigger + content + afterCursor;
-      newCursorPos = beforeTrigger.length + content.length;
+      newValue = beforeTrigger + processedContent + afterCursor;
+      newCursorPos = beforeTrigger.length + processedContent.length;
     } else {
       // Insert at current cursor position
       const beforeCursor = currentValue.substring(0, cursorPos);
       const afterCursor = currentValue.substring(cursorPos);
-      newValue = beforeCursor + content + afterCursor;
-      newCursorPos = cursorPos + content.length;
+      newValue = beforeCursor + processedContent + afterCursor;
+      newCursorPos = cursorPos + processedContent.length;
     }
     
     this.setInputValue(this.activeInput, newValue);
