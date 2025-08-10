@@ -10,6 +10,7 @@ class AIPromptAutocomplete {
     this.isInDropdownMode = false; // Unified mode for both hotkey and text trigger
     this.dropdownModeStartPosition = -1;
     this.dropdownModeType = null; // 'hotkey' or 'textTrigger'
+    this.dropdownModeLastCursorPos = -1;
     this.justInsertedPrompt = false;
     
     // Placeholder form state
@@ -94,6 +95,18 @@ class AIPromptAutocomplete {
     switch (message.action) {
       case 'showPromptDropdown':
         console.log('Received showPromptDropdown message');
+        if (!this.activeInput) {
+          // Try to recover active input from current focus/selection
+          const focused = this.getEditableRoot(document.activeElement);
+          if (focused) this.activeInput = focused;
+          if (!this.activeInput) {
+            const sel = window.getSelection && window.getSelection();
+            if (sel && sel.anchorNode) {
+              const fromSelection = this.getEditableRoot(sel.anchorNode.parentElement || sel.anchorNode);
+              if (fromSelection) this.activeInput = fromSelection;
+            }
+          }
+        }
         if (this.activeInput) {
           console.log('Active input found, activating dropdown mode');
           this.activateDropdownMode('hotkey');
@@ -111,16 +124,17 @@ class AIPromptAutocomplete {
   setupEventListeners() {
     // Monitor all input fields
     document.addEventListener('focusin', (e) => {
-      if (this.isInputElement(e.target)) {
-        console.log('Input focused:', e.target.tagName, e.target.contentEditable, e.target);
+      const editableRoot = this.getEditableRoot(e.target);
+      if (editableRoot) {
+        console.log('Input focused:', editableRoot.tagName, editableRoot.contentEditable, editableRoot);
         // If switching to a different input, reset dropdown mode
-        if (this.activeInput !== e.target && !this.isPlaceholderInput(e.target)) {
+        if (this.activeInput !== editableRoot && !this.isPlaceholderInput(e.target)) {
           this.resetDropdownMode();
         }
         
         // Only set activeInput if it's not a placeholder input
         if (!this.isPlaceholderInput(e.target)) {
-          this.activeInput = e.target;
+          this.activeInput = editableRoot;
         }
       }
     });
@@ -162,30 +176,57 @@ class AIPromptAutocomplete {
   }
 
   isInputElement(element) {
-    if (!element) return false;
+    return Boolean(this.getEditableRoot(element));
+  }
 
-    // Check for standard input elements
-    if (element.tagName === 'INPUT' && 
-        ['text', 'search', 'url', 'email', 'password'].includes(element.type)) {
-      return true;
+  getEditableRoot(element) {
+    if (!element) return null;
+
+    // Standard inputs
+    if (element.tagName === 'INPUT' && ['text', 'search', 'url', 'email', 'password'].includes(element.type)) {
+      return element;
     }
-
-    // Check for textarea
     if (element.tagName === 'TEXTAREA') {
-      return true;
+      return element;
     }
 
-    // Check for contentEditable elements (any truthy value, not just 'true')
-    if (element.contentEditable && element.contentEditable !== 'false' && element.contentEditable !== 'inherit') {
-      return true;
+    // Role textbox (custom editors)
+    if (element.getAttribute && element.getAttribute('role') === 'textbox') {
+      return element;
     }
 
-    // Also check for elements with role="textbox" (common pattern for custom inputs)
-    if (element.getAttribute('role') === 'textbox') {
-      return true;
+    // ContentEditable (including inherited)
+    if (element.isContentEditable) {
+      // Climb up to the root contentEditable element
+      let node = element;
+      while (node.parentElement && node.parentElement.isContentEditable) {
+        node = node.parentElement;
+      }
+      return node;
     }
 
-    return false;
+    // Traverse ancestors to find an editable root
+    let current = element.parentElement;
+    while (current) {
+      if (current.tagName === 'INPUT' && ['text', 'search', 'url', 'email', 'password'].includes(current.type)) {
+        return current;
+      }
+      if (current.tagName === 'TEXTAREA') {
+        return current;
+      }
+      if (current.getAttribute && current.getAttribute('role') === 'textbox') {
+        return current;
+      }
+      if (current.isContentEditable) {
+        let root = current;
+        while (root.parentElement && root.parentElement.isContentEditable) {
+          root = root.parentElement;
+        }
+        return root;
+      }
+      current = current.parentElement;
+    }
+    return null;
   }
 
   handleKeydown(e) {
@@ -333,6 +374,7 @@ class AIPromptAutocomplete {
     
     if (type === 'hotkey') {
       const cursorPos = this.getCursorPosition(this.activeInput);
+      this.dropdownModeLastCursorPos = cursorPos;
       const value = this.getInputValue(this.activeInput);
       const beforeCursor = value.substring(0, cursorPos);
       
@@ -349,6 +391,7 @@ class AIPromptAutocomplete {
       // Get text after trigger for filtering
       const value = this.getInputValue(this.activeInput);
       const cursorPos = this.getCursorPosition(this.activeInput);
+      this.dropdownModeLastCursorPos = cursorPos;
       const afterTrigger = value.substring(this.dropdownModeStartPosition, cursorPos);
       this.filterAndShowPromptsWithBestMatch(afterTrigger);
     }
@@ -356,6 +399,8 @@ class AIPromptAutocomplete {
 
   handleDropdownModeInput(value, cursorPos) {
     console.log('Handle dropdown input:', { value, cursorPos, startPos: this.dropdownModeStartPosition, type: this.dropdownModeType });
+    // Track last known cursor position while in dropdown mode (used after placeholder collection)
+    this.dropdownModeLastCursorPos = cursorPos;
     
     // If cursor moved before start position, exit dropdown mode
     if (cursorPos < this.dropdownModeStartPosition) {
@@ -389,6 +434,7 @@ class AIPromptAutocomplete {
     this.isInDropdownMode = false;
     this.dropdownModeType = null;
     this.dropdownModeStartPosition = -1;
+    this.dropdownModeLastCursorPos = -1;
     this.resetPlaceholderMode();
     this.hideDropdown();
   }
@@ -931,6 +977,7 @@ class AIPromptAutocomplete {
     const originalDropdownMode = this.isInDropdownMode;
     const originalDropdownModeType = this.dropdownModeType;
     const originalDropdownModeStartPosition = this.dropdownModeStartPosition;
+    const originalDropdownModeLastCursorPos = this.dropdownModeLastCursorPos;
     
     // Reset placeholder mode first
     this.resetPlaceholderMode();
@@ -939,6 +986,7 @@ class AIPromptAutocomplete {
     this.isInDropdownMode = originalDropdownMode;
     this.dropdownModeType = originalDropdownModeType;
     this.dropdownModeStartPosition = originalDropdownModeStartPosition;
+    this.dropdownModeLastCursorPos = originalDropdownModeLastCursorPos;
     
     this.insertPrompt(finalContent);
   }
@@ -956,7 +1004,11 @@ class AIPromptAutocomplete {
     // For textarea and contentEditable, keep original content with newlines
 
     const currentValue = this.getInputValue(this.activeInput);
-    const cursorPos = this.getCursorPosition(this.activeInput);
+    // Use stored cursor position from dropdown mode if available to avoid focus-related inaccuracies
+    let cursorPos = this.isInDropdownMode && this.dropdownModeLastCursorPos >= 0
+      ? this.dropdownModeLastCursorPos
+      : this.getCursorPosition(this.activeInput);
+    cursorPos = Math.max(0, Math.min(cursorPos, currentValue.length));
 
     let newValue, newCursorPos;
 
@@ -1011,12 +1063,12 @@ class AIPromptAutocomplete {
 
   getInputValue(input) {
     if (!input) return '';
-    return input.contentEditable === 'true' ? input.textContent : input.value;
+    return (input.isContentEditable || input.contentEditable === 'true') ? input.textContent : input.value;
   }
 
   setInputValue(input, value) {
     if (!input) return;
-    if (input.contentEditable === 'true') {
+    if (input.isContentEditable || input.contentEditable === 'true') {
       input.textContent = value;
     } else {
       input.value = value;
@@ -1025,25 +1077,58 @@ class AIPromptAutocomplete {
 
   getCursorPosition(input) {
     if (!input) return 0;
-    if (input.contentEditable === 'true') {
+    // ContentEditable: compute offset from start of the editable root
+    if (input.isContentEditable || input.contentEditable === 'true') {
       const selection = window.getSelection();
-      return selection.rangeCount > 0 ? selection.getRangeAt(0).startOffset : 0;
-    } else {
-      return input.selectionStart || 0;
+      if (!selection || selection.rangeCount === 0) return 0;
+      const range = selection.getRangeAt(0);
+      const preRange = range.cloneRange();
+      try {
+        preRange.selectNodeContents(input);
+        preRange.setEnd(range.startContainer, range.startOffset);
+      } catch (e) {
+        return 0;
+      }
+      return preRange.toString().length;
     }
+    // Inputs/Textareas
+    return typeof input.selectionStart === 'number' ? input.selectionStart : 0;
   }
 
   setCursorPosition(input, position) {
     if (!input) return;
-    if (input.contentEditable === 'true') {
-      const range = document.createRange();
+    if (input.isContentEditable || input.contentEditable === 'true') {
       const selection = window.getSelection();
-      range.setStart(input.firstChild || input, Math.min(position, input.textContent.length));
+      if (!selection) return;
+      const range = document.createRange();
+      const targetPos = Math.max(0, Math.min(position, (input.textContent || '').length));
+
+      // Walk text nodes to find the correct offset
+      let remaining = targetPos;
+      let found = false;
+      const walker = document.createTreeWalker(input, NodeFilter.SHOW_TEXT, null);
+      let node = walker.nextNode();
+      while (node) {
+        const len = node.nodeValue ? node.nodeValue.length : 0;
+        if (remaining <= len) {
+          range.setStart(node, remaining);
+          found = true;
+          break;
+        }
+        remaining -= len;
+        node = walker.nextNode();
+      }
+      if (!found) {
+        range.selectNodeContents(input);
+        range.collapse(false);
+      }
       range.collapse(true);
       selection.removeAllRanges();
       selection.addRange(range);
     } else {
-      input.setSelectionRange(position, position);
+      if (typeof input.setSelectionRange === 'function') {
+        input.setSelectionRange(position, position);
+      }
     }
   }
 
