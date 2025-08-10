@@ -30,17 +30,23 @@ class AIPromptAutocomplete {
 
   async init() {
     try {
+      // Wait for DOM to be fully ready
+      await this.waitForDOM();
+      
       // Load settings from background with retry logic
-      let retries = 3;
+      let retries = 5;
       while (retries > 0 && !this.settings) {
         this.settings = await this.sendMessage({ action: 'getSettings' });
         if (!this.settings) {
           retries--;
           if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 200));
           }
         }
       }
+
+      // Small delay to ensure page is fully rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Set up event listeners
       this.setupEventListeners();
@@ -54,8 +60,25 @@ class AIPromptAutocomplete {
     } catch (error) {
       console.error('Error initializing AI Prompt Extension:', error);
       // Retry initialization after a delay
-      setTimeout(() => this.init(), 500);
+      setTimeout(() => this.init(), 1000);
     }
+  }
+
+  async waitForDOM() {
+    return new Promise((resolve) => {
+      if (document.readyState === 'complete') {
+        resolve();
+      } else {
+        const checkReady = () => {
+          if (document.readyState === 'complete') {
+            resolve();
+          } else {
+            setTimeout(checkReady, 50);
+          }
+        };
+        checkReady();
+      }
+    });
   }
 
   async sendMessage(message) {
@@ -680,48 +703,59 @@ class AIPromptAutocomplete {
   positionDropdown() {
     if (!this.activeInput || !this.dropdown) return;
 
-    // Force dropdown to be visible for measurement
-    this.dropdown.style.visibility = 'hidden';
-    this.dropdown.style.display = 'block';
+    // Use requestAnimationFrame to ensure DOM has been painted
+    requestAnimationFrame(() => {
+      // Force dropdown to be visible for measurement
+      this.dropdown.style.visibility = 'hidden';
+      this.dropdown.style.display = 'block';
+      this.dropdown.style.position = 'absolute';
 
-    const inputRect = this.activeInput.getBoundingClientRect();
-    const dropdownHeight = this.dropdown.offsetHeight;
-    const dropdownWidth = this.dropdown.offsetWidth;
-    const viewportHeight = window.innerHeight;
-    const viewportWidth = window.innerWidth;
+      const inputRect = this.activeInput.getBoundingClientRect();
+      
+      // Ensure we have valid input dimensions
+      if (inputRect.width === 0 && inputRect.height === 0) {
+        console.warn('Input element has no dimensions, delaying positioning');
+        setTimeout(() => this.positionDropdown(), 100);
+        return;
+      }
 
-    console.log('Positioning dropdown:', {
-      inputType: this.activeInput.tagName,
-      contentEditable: this.activeInput.contentEditable,
-      inputRect,
-      dropdownSize: { width: dropdownWidth, height: dropdownHeight }
+      const dropdownHeight = this.dropdown.offsetHeight;
+      const dropdownWidth = this.dropdown.offsetWidth;
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+
+      console.log('Positioning dropdown:', {
+        inputType: this.activeInput.tagName,
+        contentEditable: this.activeInput.contentEditable,
+        inputRect,
+        dropdownSize: { width: dropdownWidth, height: dropdownHeight }
+      });
+
+      // Calculate optimal position
+      let top = inputRect.bottom + window.scrollY + 4;
+      let left = inputRect.left + window.scrollX;
+
+      // If dropdown would be cut off at bottom, position above
+      if (inputRect.bottom + dropdownHeight + 10 > viewportHeight) {
+        top = inputRect.top + window.scrollY - dropdownHeight - 4;
+      }
+
+      // If dropdown would be cut off at right, align to right edge of input
+      if (left + dropdownWidth > viewportWidth) {
+        left = inputRect.right + window.scrollX - dropdownWidth;
+      }
+
+      // Ensure minimum left position
+      left = Math.max(10, left);
+
+      this.dropdown.style.top = `${top}px`;
+      this.dropdown.style.left = `${left}px`;
+      this.dropdown.style.width = `${Math.max(300, inputRect.width)}px`;
+      this.dropdown.style.zIndex = '10000';
+      
+      // Make dropdown visible again
+      this.dropdown.style.visibility = 'visible';
     });
-
-    // Calculate optimal position
-    let top = inputRect.bottom + window.scrollY + 4;
-    let left = inputRect.left + window.scrollX;
-
-    // If dropdown would be cut off at bottom, position above
-    if (inputRect.bottom + dropdownHeight + 10 > viewportHeight) {
-      top = inputRect.top + window.scrollY - dropdownHeight - 4;
-    }
-
-    // If dropdown would be cut off at right, align to right edge of input
-    if (left + dropdownWidth > viewportWidth) {
-      left = inputRect.right + window.scrollX - dropdownWidth;
-    }
-
-    // Ensure minimum left position
-    left = Math.max(10, left);
-
-    this.dropdown.style.position = 'absolute';
-    this.dropdown.style.top = `${top}px`;
-    this.dropdown.style.left = `${left}px`;
-    this.dropdown.style.width = `${Math.max(300, inputRect.width)}px`;
-    this.dropdown.style.zIndex = '10000';
-    
-    // Make dropdown visible again
-    this.dropdown.style.visibility = 'visible';
   }
 
   selectNext() {
@@ -959,9 +993,19 @@ class AIPromptAutocomplete {
   isDropdownFocused() {
     if (!this.dropdown) return false;
     
-    // Check if dropdown or any of its contents (including placeholder inputs) are focused
-    return this.dropdown.contains(document.activeElement) || 
-           (this.isInPlaceholderMode && document.activeElement.classList.contains('placeholder-input'));
+    const activeElement = document.activeElement;
+    
+    // Check if dropdown or any of its contents are focused
+    if (this.dropdown.contains(activeElement)) {
+      return true;
+    }
+    
+    // Check if any placeholder input is focused (they might be outside dropdown hierarchy temporarily)
+    if (this.isInPlaceholderMode && activeElement && activeElement.classList.contains('placeholder-input')) {
+      return true;
+    }
+    
+    return false;
   }
 
   showNoPromptsMessage() {
