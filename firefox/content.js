@@ -115,22 +115,6 @@ class AIPromptAutocomplete {
   }
 
   handleKeydown(e) {
-    // Handle ESC key globally to reset text trigger state
-    if (e.key === 'Escape') {
-      console.log('ESC pressed - resetting text trigger state');
-      e.preventDefault();
-      e.stopPropagation();
-      if (this.isDropdownVisible) {
-        console.log('Hiding dropdown');
-        this.hideDropdown();
-      }
-      // Always reset text trigger state when ESC is pressed
-      this.textTriggerActive = false;
-      this.textTriggerPosition = -1;
-      console.log('Text trigger state reset');
-      return false;
-    }
-
     // When dropdown is visible, completely intercept ALL Enter events
     if (this.isDropdownVisible && e.key === 'Enter') {
       e.preventDefault();
@@ -166,7 +150,7 @@ class AIPromptAutocomplete {
       return false;
     }
 
-    // Handle dropdown navigation when visible
+    // Handle dropdown navigation
     if (this.isDropdownVisible) {
       switch (e.key) {
         case 'ArrowDown':
@@ -179,6 +163,15 @@ class AIPromptAutocomplete {
           e.preventDefault();
           e.stopPropagation();
           this.selectPrevious();
+          return false;
+
+        case 'Escape':
+          e.preventDefault();
+          e.stopPropagation();
+          this.hideDropdown();
+          // Reset text trigger state so dropdown won't show again without full keyword
+          this.textTriggerActive = false;
+          this.textTriggerPosition = -1;
           return false;
       }
     }
@@ -202,8 +195,6 @@ class AIPromptAutocomplete {
     const beforeCursor = value.substring(0, cursorPos);
     const triggerIndex = beforeCursor.lastIndexOf(trigger);
 
-    console.log('checkTextTrigger - textTriggerActive:', this.textTriggerActive, 'value:', value, 'trigger:', trigger);
-
     if (triggerIndex !== -1) {
       const afterTrigger = beforeCursor.substring(triggerIndex + trigger.length);
 
@@ -211,7 +202,6 @@ class AIPromptAutocomplete {
       const isValidTrigger = triggerIndex === 0 || /\s/.test(beforeCursor[triggerIndex - 1]);
 
       if (isValidTrigger) {
-        console.log('Valid text trigger found, activating');
         this.textTriggerActive = true;
         this.textTriggerPosition = triggerIndex;
         this.filterAndShowPrompts(afterTrigger.trim());
@@ -221,7 +211,6 @@ class AIPromptAutocomplete {
 
     // Hide dropdown if trigger is not found
     if (this.textTriggerActive) {
-      console.log('Text trigger no longer valid, deactivating');
       this.textTriggerActive = false;
       this.hideDropdown();
     }
@@ -256,17 +245,12 @@ class AIPromptAutocomplete {
   }
 
   async showDropdownWithFiltering() {
-    console.log('showDropdownWithFiltering called');
     if (!this.settings?.prompts?.length) {
-      console.log('No prompts available');
       this.showNoPromptsMessage();
       return;
     }
 
-    if (!this.activeInput) {
-      console.log('No active input');
-      return;
-    }
+    if (!this.activeInput) return;
 
     // Get current input value and cursor position to check for existing content
     const currentValue = this.getInputValue(this.activeInput);
@@ -279,14 +263,10 @@ class AIPromptAutocomplete {
     const lastSpaceIndex = beforeCursor.lastIndexOf(' ');
     const filterQuery = beforeCursor.substring(lastSpaceIndex + 1);
     
-    console.log('Hotkey filtering - beforeCursor:', beforeCursor, 'filterQuery:', filterQuery);
-    
     // If there's text that could be used for filtering, use it
     if (filterQuery.trim()) {
-      console.log('Filtering with query:', filterQuery);
       this.filterAndShowPrompts(filterQuery);
     } else {
-      console.log('Showing all prompts');
       // Otherwise show all prompts
       this.filteredPrompts = [...this.settings.prompts];
       this.createDropdown();
