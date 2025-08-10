@@ -281,8 +281,11 @@ class AIPromptAutocomplete {
   }
 
   handleDropdownModeInput(value, cursorPos) {
+    console.log('Handle dropdown input:', { value, cursorPos, startPos: this.dropdownModeStartPosition, type: this.dropdownModeType });
+    
     // If cursor moved before start position, exit dropdown mode
     if (cursorPos < this.dropdownModeStartPosition) {
+      console.log('Cursor before start position, resetting');
       this.resetDropdownMode();
       return;
     }
@@ -294,6 +297,7 @@ class AIPromptAutocomplete {
       const triggerText = value.substring(triggerStart, this.dropdownModeStartPosition);
       
       if (triggerText !== trigger) {
+        console.log('Text trigger removed, resetting');
         this.resetDropdownMode();
         return;
       }
@@ -301,8 +305,9 @@ class AIPromptAutocomplete {
     
     // Extract the filter text from the start position to cursor
     const filterText = value.substring(this.dropdownModeStartPosition, cursorPos);
+    console.log('Filter text extracted:', `"${filterText}"`);
     
-    // Filter prompts based on current text
+    // Filter prompts based on current text (including empty text to show all)
     this.filterAndShowPromptsWithBestMatch(filterText);
   }
 
@@ -357,9 +362,11 @@ class AIPromptAutocomplete {
     }
 
     const queryLower = query.toLowerCase().trim();
+    console.log('Filtering with query:', `"${query}"`, 'trimmed:', `"${queryLower}"`, 'total prompts:', this.settings.prompts.length);
 
     if (!queryLower) {
       // No query - show all prompts
+      console.log('Empty query, showing all prompts');
       this.filteredPrompts = [...this.settings.prompts];
     } else {
       // Score-based matching for better results
@@ -397,7 +404,7 @@ class AIPromptAutocomplete {
         .map(item => item.prompt);
     }
 
-
+    console.log('Final filtered prompts count:', this.filteredPrompts.length);
 
     this.createDropdown();
     this.renderDropdown();
