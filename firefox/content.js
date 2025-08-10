@@ -145,7 +145,7 @@ class AIPromptAutocomplete {
       e.preventDefault();
       e.stopPropagation();
       if (this.activeInput) {
-        this.showDropdown();
+        this.showDropdownWithFiltering();
       }
       return false;
     }
@@ -169,6 +169,9 @@ class AIPromptAutocomplete {
           e.preventDefault();
           e.stopPropagation();
           this.hideDropdown();
+          // Reset text trigger state so dropdown won't show again without full keyword
+          this.textTriggerActive = false;
+          this.textTriggerPosition = -1;
           return false;
       }
     }
@@ -239,6 +242,38 @@ class AIPromptAutocomplete {
     this.renderDropdown();
     this.positionDropdown();
     this.isDropdownVisible = true;
+  }
+
+  async showDropdownWithFiltering() {
+    if (!this.settings?.prompts?.length) {
+      this.showNoPromptsMessage();
+      return;
+    }
+
+    if (!this.activeInput) return;
+
+    // Get current input value and cursor position to check for existing content
+    const currentValue = this.getInputValue(this.activeInput);
+    const cursorPos = this.getCursorPosition(this.activeInput);
+    
+    // Get text before cursor that could be used for filtering
+    const beforeCursor = currentValue.substring(0, cursorPos);
+    
+    // Look for the last word before cursor (up to first space or beginning)
+    const lastSpaceIndex = beforeCursor.lastIndexOf(' ');
+    const filterQuery = beforeCursor.substring(lastSpaceIndex + 1);
+    
+    // If there's text that could be used for filtering, use it
+    if (filterQuery.trim()) {
+      this.filterAndShowPrompts(filterQuery);
+    } else {
+      // Otherwise show all prompts
+      this.filteredPrompts = [...this.settings.prompts];
+      this.createDropdown();
+      this.renderDropdown();
+      this.positionDropdown();
+      this.isDropdownVisible = true;
+    }
   }
 
   filterAndShowPrompts(query) {
@@ -412,11 +447,24 @@ class AIPromptAutocomplete {
       newValue = beforeTrigger + processedContent + afterCursor;
       newCursorPos = beforeTrigger.length + processedContent.length;
     } else {
-      // Insert at current cursor position
+      // Check if we're in hotkey filtering mode (dropdown was triggered by hotkey and has filtered content)
       const beforeCursor = currentValue.substring(0, cursorPos);
-      const afterCursor = currentValue.substring(cursorPos);
-      newValue = beforeCursor + processedContent + afterCursor;
-      newCursorPos = cursorPos + processedContent.length;
+      const lastSpaceIndex = beforeCursor.lastIndexOf(' ');
+      const possibleFilterText = beforeCursor.substring(lastSpaceIndex + 1);
+      
+      // If the current filtered prompts don't include all prompts, we're in filtering mode
+      // and should replace the filter text
+      if (this.filteredPrompts.length < this.settings.prompts.length && possibleFilterText.trim()) {
+        const beforeFilter = currentValue.substring(0, lastSpaceIndex + 1);
+        const afterCursor = currentValue.substring(cursorPos);
+        newValue = beforeFilter + processedContent + afterCursor;
+        newCursorPos = beforeFilter.length + processedContent.length;
+      } else {
+        // Insert at current cursor position (normal hotkey or no filtering)
+        const afterCursor = currentValue.substring(cursorPos);
+        newValue = beforeCursor + processedContent + afterCursor;
+        newCursorPos = cursorPos + processedContent.length;
+      }
     }
 
     this.setInputValue(this.activeInput, newValue);

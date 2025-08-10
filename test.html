@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extension Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            margin: 10px 0;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        .contenteditable {
+            width: 100%;
+            min-height: 60px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            margin: 10px 0;
+            box-sizing: border-box;
+            background: white;
+        }
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .feature-test {
+            background: #f3e5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+            border-left: 4px solid #9c27b0;
+        }
+        .hotkey-info {
+            background: #fff3e0;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI Prompt Extension Test Page</h1>
+    
+    <div class="instructions">
+        <h3>Testing Instructions</h3>
+        <p>This page is designed to test the AI Prompt Extension functionality. Make sure the extension is loaded in your browser.</p>
+        <div class="hotkey-info">Default hotkey: <strong>Ctrl+Shift+P</strong> | Default text trigger: <strong>AI:</strong></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Feature Test 1: Hotkey with Filtering</h2>
+        <div class="feature-test">
+            <strong>Test:</strong> Type some text, then press the hotkey. The dropdown should filter prompts based on the text before cursor.
+        </div>
+        <input type="text" placeholder="Type 'hello' then press Ctrl+Shift+P to test filtering...">
+    </div>
+
+    <div class="test-section">
+        <h2>Feature Test 2: ESC Key Behavior</h2>
+        <div class="feature-test">
+            <strong>Test:</strong> Type 'AI:' to trigger dropdown, then press ESC. The dropdown should close and NOT reopen when typing more text unless you type the full 'AI:' trigger again.
+        </div>
+        <input type="text" placeholder="Type 'AI:' then press ESC, then type more text...">
+    </div>
+
+    <div class="test-section">
+        <h2>Input Field Types</h2>
+        
+        <h3>Single-line Text Input</h3>
+        <input type="text" placeholder="Test text trigger: AI: or hotkey here...">
+        
+        <h3>Textarea</h3>
+        <textarea placeholder="Test text trigger: AI: or hotkey here..."></textarea>
+        
+        <h3>ContentEditable Div</h3>
+        <div class="contenteditable" contenteditable="true">Click here and test text trigger: AI: or hotkey...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Original Functionality Tests</h2>
+        
+        <h3>Text Trigger with Filtering</h3>
+        <div class="feature-test">
+            <strong>Expected:</strong> Type 'AI:' followed by text to filter prompts by name/content.
+        </div>
+        <input type="text" placeholder="Type 'AI: hello' to filter prompts...">
+        
+        <h3>Hotkey Test</h3>
+        <div class="feature-test">
+            <strong>Expected:</strong> Press Ctrl+Shift+P to show all prompts.
+        </div>
+        <input type="text" placeholder="Focus here and press Ctrl+Shift+P...">
+    </div>
+
+    <script>
+        // Add some visual feedback for testing
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+                console.log('Hotkey detected: Ctrl+Shift+P');
+            }
+            if (e.key === 'Escape') {
+                console.log('ESC key pressed');
+            }
+        });
+
+        document.addEventListener('input', function(e) {
+            if (e.target.value && e.target.value.includes('AI:')) {
+                console.log('Text trigger detected:', e.target.value);
+            }
+        });
+
+        // Add focus indicators
+        document.addEventListener('focusin', function(e) {
+            if (e.target.matches('input, textarea, [contenteditable]')) {
+                e.target.style.borderColor = '#4CAF50';
+            }
+        });
+
+        document.addEventListener('focusout', function(e) {
+            if (e.target.matches('input, textarea, [contenteditable]')) {
+                e.target.style.borderColor = '#ddd';
+            }
+        });
+    </script>
+</body>
+</html>

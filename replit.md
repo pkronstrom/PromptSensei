@@ -65,9 +65,14 @@ No external services, databases, or third-party APIs are required. The extension
 - **Export/Import Functionality**: Users can now backup and restore prompt libraries via JSON files
 - **Form Submission Prevention**: Fixed critical issue where AI: text trigger would accidentally submit forms
 - **Enhanced Event Handling**: Improved keyboard navigation and prevented unwanted form submissions
+- **Hotkey Filtering**: Added filtering capability when using hotkey - now filters prompts based on text before cursor
+- **Improved ESC Behavior**: ESC key now properly resets text trigger state, requiring full keyword to be typed again
 
 ## Technical Enhancements
 - Added comprehensive form event prevention when dropdown is active
 - Improved text trigger state management
 - Enhanced error handling for import/export operations
 - Better focus management after prompt insertion
+- Added `showDropdownWithFiltering()` method for hotkey-triggered filtering
+- Enhanced prompt insertion logic to handle both text trigger and hotkey filtering scenarios
+- Fixed ESC key to reset `textTriggerActive` and `textTriggerPosition` states
