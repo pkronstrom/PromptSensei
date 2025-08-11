@@ -1,7 +1,11 @@
 // Content script for input monitoring and dropdown display
 class AIPromptAutocomplete {
   constructor() {
-    this.settings = null;
+    this.settings = {
+      hotkey: 'Ctrl+Shift+P',
+      textTrigger: 'AI:',
+      prompts: []
+    };
     this.activeInput = null;
     this.dropdown = null;
     this.selectedIndex = -1;
@@ -12,7 +16,7 @@ class AIPromptAutocomplete {
     this.dropdownModeType = null; // 'hotkey' or 'textTrigger'
     this.dropdownModeLastCursorPos = -1;
     this.justInsertedPrompt = false;
-    
+
     // Placeholder form state
     this.isInPlaceholderMode = false;
     this.currentPromptContent = '';
@@ -20,7 +24,25 @@ class AIPromptAutocomplete {
     this.placeholderValues = {};
     this.currentPlaceholderIndex = 0;
 
-    // Ensure DOM is ready before initializing
+    // Internal guards to avoid duplicate registrations
+    this._eventsRegistered = false;
+    this._messageRegistered = false;
+
+    // Register message listener immediately so early background messages are not missed
+    if (!this._messageRegistered) {
+      try {
+        browser.runtime.onMessage.addListener((message) => this.handleMessage(message));
+        this._messageRegistered = true;
+      } catch (_) {}
+    }
+
+    // Register DOM/input listeners immediately
+    if (!this._eventsRegistered) {
+      this.setupEventListeners();
+      this._eventsRegistered = true;
+    }
+
+    // Ensure DOM is ready before any DOM-dependent operations, but don't block overall init
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => this.init());
     } else {
@@ -31,33 +53,24 @@ class AIPromptAutocomplete {
 
   async init() {
     try {
-      // Wait for DOM to be fully ready
+      // Proceed as soon as the DOM is at least interactive to avoid long delays on SPA pages
       await this.waitForDOM();
-      
-      // Load settings from background with retry logic
+
+      // Load settings from background (non-blocking defaults already set)
       let retries = 5;
-      while (retries > 0 && !this.settings) {
-        this.settings = await this.sendMessage({ action: 'getSettings' });
-        if (!this.settings) {
-          retries--;
-          if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
+      while (retries > 0) {
+        const s = await this.sendMessage({ action: 'getSettings' });
+        if (s) {
+          this.settings = s;
+          break;
         }
+        retries--;
+        if (retries > 0) await new Promise(r => setTimeout(r, 200));
       }
 
       // Small delay to ensure page is fully rendered
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
-      // Set up event listeners
-      this.setupEventListeners();
-
-      // Listen for messages from background script
-      browser.runtime.onMessage.addListener((message) => {
-        this.handleMessage(message);
-      });
-
-      
     } catch (error) {
       console.error('Error initializing AI Prompt Extension:', error);
       // Retry initialization after a delay
@@ -67,14 +80,16 @@ class AIPromptAutocomplete {
 
   async waitForDOM() {
     return new Promise((resolve) => {
-      if (document.readyState === 'complete') {
+      const ready = document.readyState;
+      if (ready === 'interactive' || ready === 'complete' || document.body) {
         resolve();
       } else {
         const checkReady = () => {
-          if (document.readyState === 'complete') {
+          const rs = document.readyState;
+          if (rs === 'interactive' || rs === 'complete' || document.body) {
             resolve();
           } else {
-            setTimeout(checkReady, 50);
+            setTimeout(checkReady, 25);
           }
         };
         checkReady();
@@ -95,23 +110,24 @@ class AIPromptAutocomplete {
     switch (message.action) {
       case 'showPromptDropdown':
         
-        if (!this.activeInput) {
-          // Try to recover active input from current focus/selection
-          const focused = this.getEditableRoot(document.activeElement);
-          if (focused) this.activeInput = focused;
-          if (!this.activeInput) {
-            const sel = window.getSelection && window.getSelection();
-            if (sel && sel.anchorNode) {
-              const fromSelection = this.getEditableRoot(sel.anchorNode.parentElement || sel.anchorNode);
-              if (fromSelection) this.activeInput = fromSelection;
-            }
+        // Prefer the currently focused element
+        let target = document.activeElement;
+        let editable = this.isInputElement(target) ? this.getEditableRoot(target) : null;
+
+        // Fallback: use current selection's editable root if focus isn't on an input/editor
+        if (!editable) {
+          const sel = window.getSelection && window.getSelection();
+          if (sel && sel.anchorNode) {
+            const anchorEl = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+            editable = this.getEditableRoot(anchorEl);
           }
         }
-        if (this.activeInput) {
-          
-          this.activateDropdownMode('hotkey');
+
+        if (editable) {
+          this.activeInput = editable;
+          setTimeout(() => { this.activateDropdownMode('hotkey'); }, 10);
         } else {
-          
+          console.warn('No editable element is focused or selected');
         }
         break;
 
@@ -125,17 +141,9 @@ class AIPromptAutocomplete {
     // Monitor all input fields
     document.addEventListener('focusin', (e) => {
       const editableRoot = this.getEditableRoot(e.target);
-      if (editableRoot) {
-        
-        // If switching to a different input, reset dropdown mode
-        if (this.activeInput !== editableRoot && !this.isPlaceholderInput(e.target)) {
-          this.resetDropdownMode();
-        }
-        
-        // Only set activeInput if it's not a placeholder input
-        if (!this.isPlaceholderInput(e.target)) {
-          this.activeInput = editableRoot;
-        }
+      if (editableRoot && !this.isPlaceholderInput(e.target)) {
+        // Simply track the active input
+        this.activeInput = editableRoot;
       }
     });
 
@@ -187,6 +195,36 @@ class AIPromptAutocomplete {
       return element;
     }
     if (element.tagName === 'TEXTAREA') {
+      // Prefer a sibling/nearby rich editor if present (e.g., ProseMirror)
+      const candidates = [
+        '._prosemirror-parent_38p30_2',
+        '.prosemirror-parent',
+        '[data-type="unified-composer"]',
+        '.editor-container',
+        '[data-lexical-editor]'
+      ];
+      let container = null;
+      for (const sel of candidates) {
+        container = element.closest(sel);
+        if (container) break;
+      }
+      if (container) {
+        const ce = container.querySelector('[contenteditable="true"]:not([aria-hidden="true"])');
+        if (ce) return ce;
+      }
+      // Try siblings as a fallback
+      const siblingCE = element.parentElement && element.parentElement.querySelector('[contenteditable="true"]:not([aria-hidden="true"])');
+      if (siblingCE) return siblingCE;
+
+      // If textarea looks visually hidden/tiny, still try to find a global CE
+      try {
+        const rect = element.getBoundingClientRect();
+        if ((rect.width <= 2 && rect.height <= 2) || element.getAttribute('aria-hidden') === 'true') {
+          const anyCE = document.querySelector('[contenteditable="true"]:not([aria-hidden="true"])');
+          if (anyCE) return anyCE;
+        }
+      } catch {}
+
       return element;
     }
 
@@ -195,11 +233,43 @@ class AIPromptAutocomplete {
       return element;
     }
 
+    // Check for specific editor classes
+    if (element.classList) {
+      // ProseMirror
+      if (element.classList.contains('ProseMirror')) {
+        return element;
+      }
+      // Lexical (Facebook's editor)
+      if (element.classList.contains('lexical-editor')) {
+        return element;
+      }
+      // Quill
+      if (element.classList.contains('ql-editor')) {
+        return element;
+      }
+      // CodeMirror
+      if (element.classList.contains('CodeMirror-code')) {
+        return element.closest('.CodeMirror');
+      }
+      // Monaco (VS Code editor)
+      if (element.classList.contains('monaco-editor')) {
+        return element.querySelector('.view-lines') || element;
+      }
+    }
+
     // ContentEditable (including inherited)
     if (element.isContentEditable) {
       // Climb up to the root contentEditable element
       let node = element;
       while (node.parentElement && node.parentElement.isContentEditable) {
+        // Stop at known editor boundaries
+        if (node.classList && (
+          node.classList.contains('ProseMirror') ||
+          node.classList.contains('lexical-editor') ||
+          node.classList.contains('ql-editor')
+        )) {
+          return node;
+        }
         node = node.parentElement;
       }
       return node;
@@ -217,9 +287,24 @@ class AIPromptAutocomplete {
       if (current.getAttribute && current.getAttribute('role') === 'textbox') {
         return current;
       }
+      // Check for editor classes in ancestors
+      if (current.classList) {
+        if (current.classList.contains('ProseMirror') ||
+            current.classList.contains('lexical-editor') ||
+            current.classList.contains('ql-editor')) {
+          return current;
+        }
+      }
       if (current.isContentEditable) {
         let root = current;
         while (root.parentElement && root.parentElement.isContentEditable) {
+          if (root.classList && (
+            root.classList.contains('ProseMirror') ||
+            root.classList.contains('lexical-editor') ||
+            root.classList.contains('ql-editor')
+          )) {
+            return root;
+          }
           root = root.parentElement;
         }
         return root;
@@ -259,6 +344,32 @@ class AIPromptAutocomplete {
       return;
     }
 
+    // Handle custom hotkey FIRST (before dropdown checks) - this ensures immediate response
+    if (this.matchesHotkey(e, this.settings?.hotkey)) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Use the focused element or selection fallback
+      let target = document.activeElement;
+      let editable = this.isInputElement(target) ? this.getEditableRoot(target) : null;
+
+      if (!editable) {
+        const sel = window.getSelection && window.getSelection();
+        if (sel && sel.anchorNode) {
+          const anchorEl = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+          editable = this.getEditableRoot(anchorEl);
+        }
+      }
+
+      if (editable) {
+        this.activeInput = editable;
+        setTimeout(() => { this.activateDropdownMode('hotkey'); }, 10);
+      } else {
+        console.warn('No editable element is focused or selected for hotkey');
+      }
+      return false;
+    }
+
     // When dropdown is visible, completely intercept ALL Enter events
     if (this.isDropdownVisible && e.key === 'Enter') {
       e.preventDefault();
@@ -281,19 +392,6 @@ class AIPromptAutocomplete {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      return false;
-    }
-
-    // Handle custom hotkey
-    if (this.matchesHotkey(e, this.settings?.hotkey)) {
-      
-      e.preventDefault();
-      e.stopPropagation();
-      if (this.activeInput) {
-        this.activateDropdownMode('hotkey');
-      } else {
-        
-      }
       return false;
     }
 
@@ -619,19 +717,49 @@ class AIPromptAutocomplete {
   matchesHotkey(event, hotkey) {
     if (!hotkey) return false;
 
-    const keys = hotkey.split('+').map(k => k.trim());
-    const modifiers = keys.slice(0, -1).map(k => k.toLowerCase());
-    const mainKey = keys[keys.length - 1].toLowerCase();
+    // Normalize hotkey string
+    const normalize = (s) => s.trim().toLowerCase();
+    const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent || '');
 
-    const eventKey = event.key.toLowerCase();
-    
-    // Check if all required modifiers are pressed and no extra ones
-    const hasCtrl = modifiers.includes('ctrl') === event.ctrlKey;
-    const hasShift = modifiers.includes('shift') === event.shiftKey;
-    const hasAlt = modifiers.includes('alt') === event.altKey;
-    const hasMeta = modifiers.includes('meta') === event.metaKey;
+    // Split and normalize tokens
+    const rawTokens = hotkey.split('+').map(normalize);
 
-    return eventKey === mainKey && hasCtrl && hasShift && hasAlt && hasMeta;
+    // Map synonyms and MOD pseudo key
+    const mappedTokens = rawTokens.map(t => {
+      if (t === 'mod') return isMac ? 'meta' : 'ctrl';
+      if (t === 'cmd') return 'meta';
+      if (t === 'command') return 'meta';
+      if (t === 'control') return 'ctrl';
+      if (t === 'option') return 'alt';
+      return t;
+    });
+
+    const modifiers = mappedTokens.slice(0, -1);
+    const mainKey = mappedTokens[mappedTokens.length - 1];
+
+    const eventKey = (event.key || '').toLowerCase();
+
+    // Required modifier states
+    const requireCtrl = modifiers.includes('ctrl');
+    const requireShift = modifiers.includes('shift');
+    const requireAlt = modifiers.includes('alt');
+    const requireMeta = modifiers.includes('meta');
+
+    // No extra modifiers allowed beyond required
+    const hasOnlyRequiredModifiers = (
+      (!!event.ctrlKey === requireCtrl) &&
+      (!!event.shiftKey === requireShift) &&
+      (!!event.altKey === requireAlt) &&
+      (!!event.metaKey === requireMeta)
+    );
+
+    // Main key match (normalize single letters to lower case)
+    const mainKeyMatches = eventKey === mainKey;
+
+    // Special case: if the saved hotkey uses ctrl on macOS but user presses meta, allow it
+    const ctrlMetaCompat = isMac && requireCtrl && !requireMeta && event.metaKey && !event.ctrlKey;
+
+    return mainKeyMatches && (hasOnlyRequiredModifiers || ctrlMetaCompat);
   }
 
 
@@ -805,70 +933,145 @@ class AIPromptAutocomplete {
         this.dropdown.style.display = 'block';
         this.dropdown.style.position = 'absolute';
 
-        let inputRect;
-        let useFallbackPosition = false;
-
-        // Try to get input rectangle, fallback if activeInput is null or invalid
-        if (this.activeInput) {
-          try {
-            inputRect = this.activeInput.getBoundingClientRect();
-            
-            // Ensure we have valid input dimensions with retry mechanism
-            if (inputRect.width === 0 && inputRect.height === 0) {
-              setTimeout(() => this.positionDropdown(), 50);
-              return;
-            }
-          } catch (error) {
-            
-            useFallbackPosition = true;
-          }
-        } else {
-          
-          useFallbackPosition = true;
-        }
-
-        // Get dropdown dimensions after it's rendered
-        const dropdownHeight = this.dropdown.offsetHeight;
-        const dropdownWidth = this.dropdown.offsetWidth;
+        let top, left, width;
         const viewportHeight = window.innerHeight;
         const viewportWidth = window.innerWidth;
 
-        let top, left;
-
-        if (useFallbackPosition || !inputRect) {
-          // Fallback: position in a reasonable location when input is null
-          // Center horizontally, position in upper portion of viewport
-          left = Math.max(10, (viewportWidth - dropdownWidth) / 2);
-          top = window.scrollY + 100; // 100px from top of viewport
+        // Prefer anchoring to caret if possible
+        const caretRect = this.getCaretClientRect(this.activeInput);
+        if (caretRect) {
+          top = caretRect.bottom + window.scrollY + 4;
+          left = caretRect.left + window.scrollX;
+          width = Math.max(300, Math.min(600, viewportWidth - left - 20));
         } else {
-          // Calculate optimal position based on input
-          top = inputRect.bottom + window.scrollY + 4;
-          left = inputRect.left + window.scrollX;
-
-          // If dropdown would be cut off at bottom, position above
-          if (inputRect.bottom + dropdownHeight + 10 > viewportHeight) {
-            top = inputRect.top + window.scrollY - dropdownHeight - 4;
+          // Fallback to input rect
+          let inputRect;
+          try {
+            inputRect = this.activeInput ? this.activeInput.getBoundingClientRect() : null;
+          } catch (e) {
+            inputRect = null;
           }
 
-          // If dropdown would be cut off at right, align to right edge of input
-          if (left + dropdownWidth > viewportWidth) {
-            left = inputRect.right + window.scrollX - dropdownWidth;
+          // Get dropdown dimensions after it's rendered
+          const dropdownHeight = this.dropdown.offsetHeight;
+          const dropdownWidth = this.dropdown.offsetWidth;
+
+          if (inputRect) {
+            top = inputRect.bottom + window.scrollY + 4;
+            left = inputRect.left + window.scrollX;
+
+            if (inputRect.bottom + dropdownHeight + 10 > viewportHeight) {
+              top = inputRect.top + window.scrollY - dropdownHeight - 4;
+            }
+            if (left + dropdownWidth > viewportWidth) {
+              left = inputRect.right + window.scrollX - dropdownWidth;
+            }
+            width = Math.max(300, inputRect.width);
+          } else {
+            // Ultimate fallback
+            const dropdownWidth2 = this.dropdown.offsetWidth;
+            left = Math.max(10, (viewportWidth - dropdownWidth2) / 2);
+            top = window.scrollY + 100;
+            width = 300;
           }
         }
 
-        // Ensure minimum left position and keep within viewport
-        left = Math.max(10, Math.min(left, viewportWidth - dropdownWidth - 10));
+        // Clamp within viewport
+        left = Math.max(10, Math.min(left, viewportWidth - 10));
         top = Math.max(10, top);
 
         this.dropdown.style.top = `${top}px`;
         this.dropdown.style.left = `${left}px`;
-        this.dropdown.style.width = useFallbackPosition ? '300px' : `${Math.max(300, inputRect ? inputRect.width : 300)}px`;
+        this.dropdown.style.width = `${width}px`;
         this.dropdown.style.zIndex = '10000';
         
         // Make dropdown visible again
         this.dropdown.style.visibility = 'visible';
       });
     });
+  }
+
+  getCaretClientRect(root) {
+    if (!root) return null;
+
+    // Inputs and textareas: no caret rect API; fall back to element rect
+    if (root.tagName === 'INPUT' || root.tagName === 'TEXTAREA') {
+      try {
+        const r = root.getBoundingClientRect();
+        return r.width || r.height ? r : null;
+      } catch { return null; }
+    }
+
+    // Contenteditable: use selection
+    const sel = window.getSelection && window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0);
+    if (!root.contains(range.startContainer)) return null;
+
+    // Try direct rect
+    const rect = range.getBoundingClientRect();
+    if (rect && (rect.width > 0 || rect.height > 0)) return rect;
+
+    // If collapsed in empty line, use a temporary marker element
+    if (range.collapsed) {
+      const marker = document.createElement('span');
+      marker.textContent = '\u200b'; // zero-width space
+      marker.style.display = 'inline-block';
+      marker.style.width = '0px';
+      marker.style.height = '1em';
+      marker.style.padding = '0';
+      marker.style.margin = '0';
+      marker.style.lineHeight = '1';
+
+      const tempRange = range.cloneRange();
+      try {
+        tempRange.insertNode(marker);
+        const markerRect = marker.getBoundingClientRect();
+        marker.parentNode && marker.parentNode.removeChild(marker);
+        return markerRect && (markerRect.width || markerRect.height) ? markerRect : null;
+      } catch {
+        try { marker.parentNode && marker.parentNode.removeChild(marker); } catch {}
+        return null;
+      }
+    }
+
+    // Fallback: first client rect
+    const rects = range.getClientRects();
+    return rects && rects.length ? rects[0] : null;
+  }
+
+  // Map character offsets within a contenteditable root to a DOM Range
+  setSelectionByOffsets(root, startOffset, endOffset) {
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const [startNode, startPos] = this.findNodeAtCharacterOffset(root, startOffset);
+    const [endNode, endPos] = this.findNodeAtCharacterOffset(root, endOffset);
+
+    if (!startNode || !endNode) return;
+
+    const range = document.createRange();
+    range.setStart(startNode, startPos);
+    range.setEnd(endNode, endPos);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  findNodeAtCharacterOffset(root, targetOffset) {
+    let remaining = Math.max(0, targetOffset);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let node = walker.nextNode();
+    while (node) {
+      const len = node.nodeValue ? node.nodeValue.length : 0;
+      if (remaining <= len) {
+        return [node, remaining];
+      }
+      remaining -= len;
+      node = walker.nextNode();
+    }
+    // If beyond end, return last valid position
+    const last = this.findLastTextNode(root);
+    return last ? [last, (last.nodeValue || '').length] : [null, 0];
   }
 
   selectNext() {
@@ -1012,16 +1215,63 @@ class AIPromptAutocomplete {
     if (!this.activeInput) return;
 
     // For single-line inputs, convert newlines to spaces
-    // For multi-line inputs (textarea, contentEditable), preserve newlines
     let processedContent = content;
     if (this.activeInput.tagName === 'INPUT') {
-      // Single-line input field - convert newlines to spaces
       processedContent = content.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
     }
-    // For textarea and contentEditable, keep original content with newlines
 
+    // If contenteditable and likely controlled by an editor (e.g., ProseMirror),
+    // operate via selection + execCommand to let the editor handle DOM/state.
+    if (this.activeInput.isContentEditable || this.activeInput.contentEditable === 'true') {
+      // Focus to ensure selection operations apply
+      this.activeInput.focus();
+
+      // When in dropdown mode, remove the filter region first
+      if (this.isInDropdownMode && this.dropdownModeStartPosition >= 0) {
+        const currentText = this.getInputValue(this.activeInput);
+        const cursorPos = this.isInDropdownMode && this.dropdownModeLastCursorPos >= 0
+          ? this.dropdownModeLastCursorPos
+          : currentText.length;
+        const start = Math.max(0, Math.min(this.dropdownModeStartPosition, currentText.length));
+        const end = Math.max(start, Math.min(cursorPos, currentText.length));
+        this.setSelectionByOffsets(this.activeInput, start, end);
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount) {
+          const r = sel.getRangeAt(0);
+          try { r.deleteContents(); } catch {}
+        }
+      }
+
+      // Insert text via execCommand (widely supported by editors)
+      try {
+        document.execCommand('insertText', false, processedContent);
+      } catch {
+        // Fallback: use beforeinput/input events
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount) {
+          const range = sel.getRangeAt(0);
+          range.deleteContents();
+          range.insertNode(document.createTextNode(processedContent));
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      }
+
+      // Dispatch input event to notify frameworks
+      const inputEvent = new Event('input', { bubbles: true });
+      this.activeInput.dispatchEvent(inputEvent);
+
+      // Reset dropdown mode and flags
+      this.justInsertedPrompt = true;
+      this.resetDropdownMode();
+      setTimeout(() => { this.justInsertedPrompt = false; }, 500);
+      setTimeout(() => { this.activeInput && this.activeInput.focus(); }, 10);
+      return;
+    }
+
+    // Fallback: value-based replace for INPUT/TEXTAREA
     const currentValue = this.getInputValue(this.activeInput);
-    // Use stored cursor position from dropdown mode if available to avoid focus-related inaccuracies
     let cursorPos = this.isInDropdownMode && this.dropdownModeLastCursorPos >= 0
       ? this.dropdownModeLastCursorPos
       : this.getCursorPosition(this.activeInput);
@@ -1030,22 +1280,17 @@ class AIPromptAutocomplete {
     let newValue, newCursorPos;
 
     if (this.isInDropdownMode && this.dropdownModeStartPosition >= 0) {
-      // Replace from start position to cursor with the prompt content
       const beforeStart = currentValue.substring(0, this.dropdownModeStartPosition);
       const afterCursor = currentValue.substring(cursorPos);
-      
-      // For text trigger mode, we need to remove the trigger itself
       if (this.dropdownModeType === 'textTrigger') {
         const triggerStart = this.dropdownModeStartPosition - this.settings.textTrigger.length;
         newValue = currentValue.substring(0, triggerStart) + processedContent + afterCursor;
         newCursorPos = triggerStart + processedContent.length;
       } else {
-        // For hotkey mode, just replace the filter text
         newValue = beforeStart + processedContent + afterCursor;
         newCursorPos = beforeStart.length + processedContent.length;
       }
     } else {
-      // Fallback: insert at current cursor position
       const beforeCursor = currentValue.substring(0, cursorPos);
       const afterCursor = currentValue.substring(cursorPos);
       newValue = beforeCursor + processedContent + afterCursor;
@@ -1055,56 +1300,159 @@ class AIPromptAutocomplete {
     this.setInputValue(this.activeInput, newValue);
     this.setCursorPosition(this.activeInput, newCursorPos);
 
-    // Set flag to prevent form submission immediately after insertion
     this.justInsertedPrompt = true;
-
-    // Trigger input event for frameworks that rely on it (after a small delay)
     setTimeout(() => {
       const inputEvent = new Event('input', { bubbles: true });
       this.activeInput.dispatchEvent(inputEvent);
     }, 50);
 
-    // Reset dropdown mode after insertion
     this.resetDropdownMode();
-
-    // Clear the insertion flag after a longer delay to prevent accidental submissions
-    setTimeout(() => {
-      this.justInsertedPrompt = false;
-    }, 500);
-
-    // Add small delay to ensure form submission is prevented
-    setTimeout(() => {
-      this.activeInput.focus();
-    }, 10);
+    setTimeout(() => { this.justInsertedPrompt = false; }, 500);
+    setTimeout(() => { this.activeInput && this.activeInput.focus(); }, 10);
   }
 
   getInputValue(input) {
     if (!input) return '';
+    
+    // Standard form inputs
+    if (input.tagName === 'INPUT' || input.tagName === 'TEXTAREA') {
+      return input.value;
+    }
+    
+    // ContentEditable elements
     if (input.isContentEditable || input.contentEditable === 'true') {
+      // Special handling for ProseMirror
+      if (input.classList && input.classList.contains('ProseMirror')) {
+        // ProseMirror stores content in paragraphs
+        const blocks = input.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, blockquote');
+        if (blocks.length > 0) {
+          return Array.from(blocks)
+            .map(block => {
+              // Handle empty paragraphs with trailing breaks
+              if (block.querySelector('.ProseMirror-trailingBreak') && 
+                  block.textContent.trim() === '') {
+                return '';
+              }
+              return block.textContent || '';
+            })
+            .join('\n');
+        }
+      }
+      
       // Preserve line breaks from contentEditable
       const text = input.innerText !== undefined ? input.innerText : input.textContent || '';
       return text.replace(/\r\n/g, '\n');
     }
-    return input.value;
+    
+    return '';
   }
 
   setInputValue(input, value) {
     if (!input) return;
+    
+    // Standard form inputs
+    if (input.tagName === 'INPUT' || input.tagName === 'TEXTAREA') {
+      input.value = value;
+      // Trigger input event
+      const event = new Event('input', { bubbles: true, cancelable: true });
+      input.dispatchEvent(event);
+      return;
+    }
+    
+    // ContentEditable elements
     if (input.isContentEditable || input.contentEditable === 'true') {
+      // Special handling for ProseMirror
+      if (input.classList && input.classList.contains('ProseMirror')) {
+        // Clear existing content
+        input.innerHTML = '';
+        
+        // Split by newlines and create paragraphs
+        const lines = value.split('\n');
+        lines.forEach((line, index) => {
+          const p = document.createElement('p');
+          if (line.trim()) {
+            p.textContent = line;
+          } else {
+            // Empty paragraph needs a br for ProseMirror
+            const br = document.createElement('br');
+            br.className = 'ProseMirror-trailingBreak';
+            p.appendChild(br);
+          }
+          input.appendChild(p);
+        });
+        
+        // Trigger input event for ProseMirror
+        const inputEvent = new Event('input', { bubbles: true, cancelable: true });
+        input.dispatchEvent(inputEvent);
+        
+        // Also trigger a more specific event that some editors listen for
+        const compositionEvent = new Event('beforeinput', { bubbles: true, cancelable: true });
+        input.dispatchEvent(compositionEvent);
+        
+        return;
+      }
+      
+      // Default contenteditable handling
       // Escape HTML and convert newlines to <br> for visual line breaks
       const safeHtml = this.escapeHtml(value).replace(/\n/g, '<br>');
       input.innerHTML = safeHtml;
-    } else {
-      input.value = value;
+      
+      // Trigger input event
+      const event = new Event('input', { bubbles: true, cancelable: true });
+      input.dispatchEvent(event);
     }
   }
 
   getCursorPosition(input) {
     if (!input) return 0;
+    
+    // Standard form inputs
+    if (input.tagName === 'INPUT' || input.tagName === 'TEXTAREA') {
+      return typeof input.selectionStart === 'number' ? input.selectionStart : 0;
+    }
+    
     // ContentEditable: compute offset from start of the editable root
     if (input.isContentEditable || input.contentEditable === 'true') {
       const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return 0;
+      if (!selection || selection.rangeCount === 0) {
+        // Try to establish a selection at the end if none exists
+        try {
+          input.focus();
+          const range = document.createRange();
+          
+          // For ProseMirror, find the last text position
+          if (input.classList && input.classList.contains('ProseMirror')) {
+            const lastBlock = input.querySelector('p:last-child, h1:last-child, h2:last-child, h3:last-child, li:last-child');
+            if (lastBlock) {
+              const textNode = this.findLastTextNode(lastBlock);
+              if (textNode) {
+                range.setStart(textNode, textNode.length);
+                range.collapse(true);
+              } else if (lastBlock.firstChild) {
+                range.selectNodeContents(lastBlock);
+                range.collapse(false);
+              } else {
+                // Empty block - position at start
+                range.setStart(lastBlock, 0);
+                range.collapse(true);
+              }
+            } else {
+              range.selectNodeContents(input);
+              range.collapse(false);
+            }
+          } else {
+            range.selectNodeContents(input);
+            range.collapse(false);
+          }
+          
+          selection.removeAllRanges();
+          selection.addRange(range);
+          return input.textContent ? input.textContent.length : 0;
+        } catch (e) {
+          return 0;
+        }
+      }
+      
       const range = selection.getRangeAt(0);
       const preRange = range.cloneRange();
       try {
@@ -1115,46 +1463,123 @@ class AIPromptAutocomplete {
       }
       return preRange.toString().length;
     }
-    // Inputs/Textareas
-    return typeof input.selectionStart === 'number' ? input.selectionStart : 0;
+    
+    return 0;
   }
 
   setCursorPosition(input, position) {
     if (!input) return;
-    if (input.isContentEditable || input.contentEditable === 'true') {
-      const selection = window.getSelection();
-      if (!selection) return;
-      const range = document.createRange();
-      // Measure against textContent length to count characters; HTML <br> represent newlines visually.
-      const targetPos = Math.max(0, Math.min(position, (input.textContent || '').length));
-
-      // Walk text nodes to find the correct offset
-      let remaining = targetPos;
-      let found = false;
-      const walker = document.createTreeWalker(input, NodeFilter.SHOW_TEXT, null);
-      let node = walker.nextNode();
-      while (node) {
-        const len = node.nodeValue ? node.nodeValue.length : 0;
-        if (remaining <= len) {
-          range.setStart(node, remaining);
-          found = true;
-          break;
-        }
-        remaining -= len;
-        node = walker.nextNode();
-      }
-      if (!found) {
-        range.selectNodeContents(input);
-        range.collapse(false);
-      }
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    } else {
+    
+    // Standard form inputs
+    if (input.tagName === 'INPUT' || input.tagName === 'TEXTAREA') {
       if (typeof input.setSelectionRange === 'function') {
         input.setSelectionRange(position, position);
       }
+      return;
     }
+    
+    // ContentEditable elements
+    if (input.isContentEditable || input.contentEditable === 'true') {
+      const selection = window.getSelection();
+      if (!selection) return;
+      
+      const range = document.createRange();
+      const targetPos = Math.max(0, Math.min(position, (input.textContent || '').length));
+
+      // Special handling for ProseMirror
+      if (input.classList && input.classList.contains('ProseMirror')) {
+        // Walk through block elements to find the correct position
+        let remaining = targetPos;
+        let found = false;
+        
+        const blocks = input.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, blockquote');
+        for (const block of blocks) {
+          const blockText = block.textContent || '';
+          const blockLength = blockText.length;
+          
+          if (remaining <= blockLength) {
+            // Position is within this block
+            const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, null);
+            let node = walker.nextNode();
+            
+            while (node && remaining > 0) {
+              const nodeLength = node.nodeValue ? node.nodeValue.length : 0;
+              if (remaining <= nodeLength) {
+                range.setStart(node, remaining);
+                found = true;
+                break;
+              }
+              remaining -= nodeLength;
+              node = walker.nextNode();
+            }
+            
+            if (!found && block.firstChild) {
+              // Position at end of block
+              range.selectNodeContents(block);
+              range.collapse(false);
+              found = true;
+            }
+            break;
+          }
+          
+          remaining -= blockLength + 1; // +1 for newline between blocks
+        }
+        
+        if (!found) {
+          // Position at end of content
+          const lastBlock = blocks[blocks.length - 1];
+          if (lastBlock) {
+            range.selectNodeContents(lastBlock);
+            range.collapse(false);
+          } else {
+            range.selectNodeContents(input);
+            range.collapse(false);
+          }
+        }
+      } else {
+        // Default contenteditable handling
+        // Walk text nodes to find the correct offset
+        let remaining = targetPos;
+        let found = false;
+        const walker = document.createTreeWalker(input, NodeFilter.SHOW_TEXT, null);
+        let node = walker.nextNode();
+        
+        while (node) {
+          const len = node.nodeValue ? node.nodeValue.length : 0;
+          if (remaining <= len) {
+            range.setStart(node, remaining);
+            found = true;
+            break;
+          }
+          remaining -= len;
+          node = walker.nextNode();
+        }
+        
+        if (!found) {
+          range.selectNodeContents(input);
+          range.collapse(false);
+        }
+      }
+      
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  }
+
+  findLastTextNode(element) {
+    // Helper to find the last text node in an element
+    const children = Array.from(element.childNodes);
+    for (let i = children.length - 1; i >= 0; i--) {
+      const child = children[i];
+      if (child.nodeType === Node.TEXT_NODE && child.textContent) {
+        return child;
+      } else if (child.nodeType === Node.ELEMENT_NODE && child.tagName !== 'BR') {
+        const lastText = this.findLastTextNode(child);
+        if (lastText) return lastText;
+      }
+    }
+    return null;
   }
 
   hideDropdown() {
