@@ -10,6 +10,9 @@
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 13px;
   overflow: hidden; /* So inner scroller keeps rounded corners */
+  opacity: 0; /* Start invisible */
+  transition: opacity 0.15s ease-out; /* Smooth fade-in */
+  will-change: transform, opacity; /* Optimize for animations */
 }
 
 /* Inner scroll container to preserve rounded corners on scrollbar side */

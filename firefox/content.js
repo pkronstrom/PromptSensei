@@ -868,6 +868,13 @@ class AIPromptAutocomplete {
     this.dropdown = document.createElement('div');
     this.dropdown.className = 'ai-prompt-dropdown';
     this.dropdown.setAttribute('role', 'listbox');
+    
+    // Pre-position off-screen to prevent jitter
+    this.dropdown.style.position = 'absolute';
+    this.dropdown.style.top = '-9999px';
+    this.dropdown.style.left = '-9999px';
+    this.dropdown.style.opacity = '0';
+    
     document.body.appendChild(this.dropdown);
   }
 
@@ -943,69 +950,61 @@ class AIPromptAutocomplete {
   positionDropdown() {
     if (!this.dropdown) return;
 
-    // Use double requestAnimationFrame for better stability
+    // Use single requestAnimationFrame for smoother positioning
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        // Force dropdown to be visible for measurement
-        this.dropdown.style.visibility = 'hidden';
-        this.dropdown.style.display = 'block';
-        this.dropdown.style.position = 'absolute';
+      let top, left, width;
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
 
-        let top, left, width;
-        const viewportHeight = window.innerHeight;
-        const viewportWidth = window.innerWidth;
-
-        // Prefer anchoring to caret if possible
-        const caretRect = this.getCaretClientRect(this.activeInput);
-        if (caretRect) {
-          top = caretRect.bottom + window.scrollY + 4;
-          left = caretRect.left + window.scrollX;
-          width = Math.max(300, Math.min(600, viewportWidth - left - 20));
-        } else {
-          // Fallback to input rect
-          let inputRect;
-          try {
-            inputRect = this.activeInput ? this.activeInput.getBoundingClientRect() : null;
-          } catch (e) {
-            inputRect = null;
-          }
-
-          // Get dropdown dimensions after it's rendered
-          const dropdownHeight = this.dropdown.offsetHeight;
-          const dropdownWidth = this.dropdown.offsetWidth;
-
-          if (inputRect) {
-            top = inputRect.bottom + window.scrollY + 4;
-            left = inputRect.left + window.scrollX;
-
-            if (inputRect.bottom + dropdownHeight + 10 > viewportHeight) {
-              top = inputRect.top + window.scrollY - dropdownHeight - 4;
-            }
-            if (left + dropdownWidth > viewportWidth) {
-              left = inputRect.right + window.scrollX - dropdownWidth;
-            }
-            width = Math.max(300, inputRect.width);
-          } else {
-            // Ultimate fallback
-            const dropdownWidth2 = this.dropdown.offsetWidth;
-            left = Math.max(10, (viewportWidth - dropdownWidth2) / 2);
-            top = window.scrollY + 100;
-            width = 300;
-          }
+      // Prefer anchoring to caret if possible
+      const caretRect = this.getCaretClientRect(this.activeInput);
+      if (caretRect) {
+        top = caretRect.bottom + window.scrollY + 4;
+        left = caretRect.left + window.scrollX;
+        width = Math.max(300, Math.min(600, viewportWidth - left - 20));
+      } else {
+        // Fallback to input rect
+        let inputRect;
+        try {
+          inputRect = this.activeInput ? this.activeInput.getBoundingClientRect() : null;
+        } catch (e) {
+          inputRect = null;
         }
 
-        // Clamp within viewport
-        left = Math.max(10, Math.min(left, viewportWidth - 10));
-        top = Math.max(10, top);
+        if (inputRect) {
+          top = inputRect.bottom + window.scrollY + 4;
+          left = inputRect.left + window.scrollX;
+          width = Math.max(300, inputRect.width);
 
-        this.dropdown.style.top = `${top}px`;
-        this.dropdown.style.left = `${left}px`;
-        this.dropdown.style.width = `${width}px`;
-        this.dropdown.style.zIndex = '10000';
-        
-        // Make dropdown visible again
-        this.dropdown.style.visibility = 'visible';
-      });
+          // Get dropdown dimensions for viewport collision detection
+          const dropdownHeight = this.dropdown.offsetHeight || 300; // fallback estimate
+          const dropdownWidth = this.dropdown.offsetWidth || width;
+
+          // Adjust position if it would overflow viewport
+          if (inputRect.bottom + dropdownHeight + 10 > viewportHeight) {
+            top = inputRect.top + window.scrollY - dropdownHeight - 4;
+          }
+          if (left + dropdownWidth > viewportWidth) {
+            left = inputRect.right + window.scrollX - dropdownWidth;
+          }
+        } else {
+          // Ultimate fallback
+          left = Math.max(10, (viewportWidth - 300) / 2);
+          top = window.scrollY + 100;
+          width = 300;
+        }
+      }
+
+      // Clamp within viewport
+      left = Math.max(10, Math.min(left, viewportWidth - 10));
+      top = Math.max(10, top);
+
+      // Apply positioning and make visible in one go
+      this.dropdown.style.top = `${top}px`;
+      this.dropdown.style.left = `${left}px`;
+      this.dropdown.style.width = `${width}px`;
+      this.dropdown.style.zIndex = '10000';
+      this.dropdown.style.opacity = '1';
     });
   }
 
@@ -1616,8 +1615,14 @@ class AIPromptAutocomplete {
 
   hideDropdown() {
     if (this.dropdown) {
-      this.dropdown.remove();
-      this.dropdown = null;
+      // Fade out smoothly before removing
+      this.dropdown.style.opacity = '0';
+      setTimeout(() => {
+        if (this.dropdown) {
+          this.dropdown.remove();
+          this.dropdown = null;
+        }
+      }, 150); // Match CSS transition duration
     }
     this.isDropdownVisible = false;
     this.selectedIndex = -1;
