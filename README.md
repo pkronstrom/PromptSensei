@@ -1,4 +1,6 @@
-# AI Prompt Auto-Complete
+# Taltio
+
+_"Taltio" means "recording" or "saved record" in Finnish_
 
 A Firefox extension that lets you quickly access and insert saved AI prompts into any text input field on web pages.
 
@@ -34,7 +36,7 @@ Works on all websites with any of these input types.
 1. Open Firefox and go to `about:debugging`
 2. Click **"This Firefox"** in the sidebar
 3. Click **"Load Temporary Add-on"**
-4. Select the `prompt-sensei-1.0.0.xpi` file
+4. Select the `taltio-1.0.0.xpi` file
 5. The extension is now active
 
 **Note**: Temporary installations are removed when Firefox restarts. This is the standard way to test unsigned extensions.

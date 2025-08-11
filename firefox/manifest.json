@@ -1,12 +1,12 @@
 {
   "manifest_version": 2,
-  "name": "AI Prompt Auto-Complete",
+  "name": "Taltio",
   "version": "1.0.0",
-  "description": "Auto-complete saved AI prompts with customizable hotkeys and text triggers",
+  "description": "Quickly access and insert saved AI prompts into any text input field",
 
   "browser_specific_settings": {
     "gecko": {
-      "id": "ai-prompt-autocomplete@promptsensei.dev"
+      "id": "taltio@promptsensei.dev"
     }
   },
 
