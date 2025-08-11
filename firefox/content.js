@@ -577,8 +577,28 @@ class AIPromptAutocomplete {
     // Add prompt name header for context
     const nameHeader = document.createElement('div');
     nameHeader.className = 'placeholder-prompt-name';
+    
+    // Add back button (if mouse buttons enabled)
+    if (this.settings?.showMouseButtons !== false) {
+      const backBtn = document.createElement('button');
+      backBtn.className = 'placeholder-back-btn';
+      backBtn.innerHTML = '‹';
+      backBtn.title = 'Back to prompts';
+      backBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.exitPlaceholderMode();
+      });
+      nameHeader.appendChild(backBtn);
+    }
+    
+    // Add prompt title
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'placeholder-prompt-title';
     const currentPrompt = this.filteredPrompts[this.selectedIndex];
-    nameHeader.textContent = currentPrompt ? currentPrompt.name : 'Prompt';
+    titleSpan.textContent = currentPrompt ? currentPrompt.name : 'Prompt';
+    nameHeader.appendChild(titleSpan);
+    
     scroll.appendChild(nameHeader);
     
     // Create preview section
@@ -634,29 +654,33 @@ class AIPromptAutocomplete {
       });
     });
     
-    // Add action buttons
-    const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'placeholder-actions';
-    
-    const insertBtn = document.createElement('button');
-    insertBtn.className = 'placeholder-insert-btn';
-    insertBtn.textContent = 'Insert';
-    insertBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.insertPromptWithPlaceholders();
-    });
-    
-    actionsDiv.appendChild(insertBtn);
-    
-    // Add instructions
-    const instructions = document.createElement('div');
-    instructions.className = 'placeholder-instructions';
-    instructions.innerHTML = 'Tab/Shift+Tab or ↑/↓ to navigate • Enter to insert • Esc to go back';
-    
     scroll.appendChild(formSection);
-    scroll.appendChild(actionsDiv);
-    scroll.appendChild(instructions);
+    
+    // Add action buttons (if enabled)
+    if (this.settings?.showMouseButtons !== false) {
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'placeholder-actions';
+      
+      const insertBtn = document.createElement('button');
+      insertBtn.className = 'placeholder-insert-btn';
+      insertBtn.textContent = 'Insert';
+      insertBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.insertPromptWithPlaceholders();
+      });
+      
+      actionsDiv.appendChild(insertBtn);
+      scroll.appendChild(actionsDiv);
+    }
+    
+    // Add instructions (if enabled)
+    if (this.settings?.showInfoBar !== false) {
+      const instructions = document.createElement('div');
+      instructions.className = 'placeholder-instructions';
+      instructions.innerHTML = 'Tab/Shift+Tab or ↑/↓ to navigate • Enter to insert • Esc to go back';
+      scroll.appendChild(instructions);
+    }
     this.dropdown.appendChild(scroll);
     
     this.updatePreview();
@@ -1267,6 +1291,10 @@ class AIPromptAutocomplete {
 
   exitPlaceholderMode() {
     this.resetPlaceholderMode();
+    // Reset dropdown class from placeholder-mode
+    if (this.dropdown) {
+      this.dropdown.className = 'ai-prompt-dropdown';
+    }
     // Go back to prompt selection
     this.filterAndShowPromptsWithBestMatch('');
   }

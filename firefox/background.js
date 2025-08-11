@@ -4,6 +4,8 @@ class AIPromptManager {
     this.defaultSettings = {
       hotkey: 'Ctrl+Shift+P',
       textTrigger: 'AI:',
+      showInfoBar: true,
+      showMouseButtons: true,
       prompts: []
     };
     this.init();
@@ -11,7 +13,17 @@ class AIPromptManager {
 
   async init() {
     // Initialize default settings if not exists
-    const result = await browser.storage.local.get(['settings']);
+    // Try sync storage first, fallback to local storage for temporary addons
+    let result;
+    try {
+      result = await browser.storage.sync.get(['settings']);
+      this.storageArea = 'sync';
+    } catch (error) {
+      console.log('Sync storage not available, using local storage:', error.message);
+      result = await browser.storage.local.get(['settings']);
+      this.storageArea = 'local';
+    }
+    
     if (!result.settings) {
       await this.saveSettings(this.defaultSettings);
     }
@@ -48,7 +60,8 @@ class AIPromptManager {
     }
 
     // Store the selected text temporarily
-    await browser.storage.local.set({ 
+    const storage = this.storageArea === 'sync' ? browser.storage.sync : browser.storage.local;
+    await storage.set({ 
       pendingPrompt: {
         content: selectedText.trim(),
         timestamp: Date.now()
@@ -73,12 +86,14 @@ class AIPromptManager {
   }
 
   async getSettings() {
-    const result = await browser.storage.local.get(['settings']);
+    const storage = this.storageArea === 'sync' ? browser.storage.sync : browser.storage.local;
+    const result = await storage.get(['settings']);
     return result.settings || this.defaultSettings;
   }
 
   async saveSettings(settings) {
-    await browser.storage.local.set({ settings });
+    const storage = this.storageArea === 'sync' ? browser.storage.sync : browser.storage.local;
+    await storage.set({ settings });
     // Notify content scripts of settings update
     this.broadcastSettingsUpdate(settings);
   }
@@ -172,11 +187,13 @@ browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         return settings.prompts;
       
       case 'getPendingPrompt':
-        const result = await browser.storage.local.get(['pendingPrompt']);
+        const storage = this.storageArea === 'sync' ? browser.storage.sync : browser.storage.local;
+        const result = await storage.get(['pendingPrompt']);
         return result.pendingPrompt || null;
       
       case 'clearPendingPrompt':
-        await browser.storage.local.remove(['pendingPrompt']);
+        const storageForClear = this.storageArea === 'sync' ? browser.storage.sync : browser.storage.local;
+        await storageForClear.remove(['pendingPrompt']);
         return { success: true };
       
       default:

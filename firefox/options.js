@@ -73,6 +73,8 @@ class OptionsManager {
   renderSettings() {
     document.getElementById('hotkey-input').value = this.settings.hotkey || 'Ctrl+Shift+P';
     document.getElementById('text-trigger-input').value = this.settings.textTrigger || 'AI:';
+    document.getElementById('show-info-bar-checkbox').checked = this.settings.showInfoBar !== false;
+    document.getElementById('show-mouse-buttons-checkbox').checked = this.settings.showMouseButtons !== false;
   }
 
   renderPrompts() {
@@ -215,7 +217,7 @@ class OptionsManager {
     // React when background saves a new pendingPrompt while options page is already open
     try {
       browser.storage.onChanged.addListener(async (changes, area) => {
-        if (area !== 'local') return;
+        if (area !== 'sync' && area !== 'local') return;
         if (changes.pendingPrompt && changes.pendingPrompt.newValue && changes.pendingPrompt.newValue.content) {
           const content = changes.pendingPrompt.newValue.content;
           // Clear the pending prompt first to avoid duplicate handling
@@ -240,6 +242,8 @@ class OptionsManager {
 
       this.settings.hotkey = hotkey;
       this.settings.textTrigger = textTrigger;
+      this.settings.showInfoBar = document.getElementById('show-info-bar-checkbox').checked;
+      this.settings.showMouseButtons = document.getElementById('show-mouse-buttons-checkbox').checked;
 
       await browser.runtime.sendMessage({ 
         action: 'saveSettings', 

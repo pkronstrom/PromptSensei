@@ -3,32 +3,35 @@
   "name": "AI Prompt Auto-Complete",
   "version": "1.0.0",
   "description": "Auto-complete saved AI prompts with customizable hotkeys and text triggers",
-  
-  "permissions": [
-    "storage",
-    "activeTab",
-    "contextMenus",
-    "<all_urls>"
-  ],
-  
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ai-prompt-autocomplete@promptsensei.dev"
+    }
+  },
+
+  "permissions": ["storage", "activeTab", "contextMenus", "<all_urls>"],
+
   "background": {
     "scripts": ["background.js"],
     "persistent": false
   },
-  
-  "content_scripts": [{
-    "matches": ["<all_urls>"],
-    "js": ["content.js"],
-    "css": ["content.css"],
-    "run_at": "document_end",
-    "all_frames": true
-  }],
-  
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_end",
+      "all_frames": true
+    }
+  ],
+
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
   },
-  
+
   "commands": {
     "trigger-prompt-dropdown": {
       "suggested_key": {
@@ -37,8 +40,6 @@
       "description": "Show AI prompt dropdown"
     }
   },
-  
-  "web_accessible_resources": [
-    "content.css"
-  ]
+
+  "web_accessible_resources": ["content.css"]
 }
