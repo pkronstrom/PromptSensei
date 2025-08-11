@@ -235,11 +235,7 @@ class AIPromptAutocomplete {
     // Handle clicks outside dropdown
     document.addEventListener('click', (e) => {
       if (this.dropdown && !this.dropdown.contains(e.target) && e.target !== this.activeInput) {
-        console.log('Click outside dropdown detected, hiding dropdown:', {
-          target: e.target,
-          isInPlaceholderMode: this.isInPlaceholderMode,
-          dropdownContainsTarget: this.dropdown.contains(e.target)
-        });
+        
         this.hideDropdown();
       }
     });
@@ -537,10 +533,7 @@ class AIPromptAutocomplete {
   }
 
   showPlaceholderForm(promptContent, placeholders) {
-    console.log('showPlaceholderForm called:', {
-      placeholdersCount: placeholders.length,
-      isInPlaceholderMode: this.isInPlaceholderMode
-    });
+
     
     // Set placeholder mode first to prevent focus handling issues
     this.isInPlaceholderMode = true;
@@ -1219,11 +1212,7 @@ class AIPromptAutocomplete {
       const prompt = this.filteredPrompts[this.selectedIndex];
       const placeholders = this.extractPlaceholders(prompt.content);
       
-      console.log('insertSelectedPrompt called:', {
-        prompt: prompt.name,
-        placeholdersCount: placeholders.length,
-        willShowPlaceholderForm: placeholders.length > 0
-      });
+
       
       if (placeholders.length > 0) {
         // Switch to placeholder collection phase

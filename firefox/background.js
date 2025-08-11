@@ -19,7 +19,7 @@ class AIPromptManager {
       result = await browser.storage.sync.get(['settings']);
       this.storageArea = 'sync';
     } catch (error) {
-      console.log('Sync storage not available, using local storage:', error.message);
+
       result = await browser.storage.local.get(['settings']);
       this.storageArea = 'local';
     }
