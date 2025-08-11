@@ -1,6 +1,9 @@
 // Content script for input monitoring and dropdown display
 class AIPromptAutocomplete {
   constructor() {
+    // Constants
+    this.ACTIVATION_DELAY = 10;
+    this.FOCUS_DELAY = 10;
     this.settings = {
       hotkey: 'Ctrl+Shift+P',
       textTrigger: 'AI:',
@@ -106,28 +109,48 @@ class AIPromptAutocomplete {
     }
   }
 
+  /**
+   * Check if an input element is a ProseMirror editor
+   * @param {Element} input - The input element to check
+   * @returns {boolean} True if it's a ProseMirror editor
+   */
+  isProseMirror(input) {
+    return input && input.classList && input.classList.contains('ProseMirror');
+  }
+
+  /**
+   * Find the currently active editable element using focus and selection fallback
+   * @returns {Element|null} The active editable element or null
+   */
+  findActiveEditableElement() {
+    // Prefer the currently focused element
+    let target = document.activeElement;
+    let editable = this.isInputElement(target) ? this.getEditableRoot(target) : null;
+
+    // Fallback: use current selection's editable root if focus isn't on an input/editor
+    if (!editable) {
+      const sel = window.getSelection && window.getSelection();
+      if (sel && sel.anchorNode) {
+        const anchorEl = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+        editable = this.getEditableRoot(anchorEl);
+      }
+    }
+
+    return editable;
+  }
+
   handleMessage(message) {
     switch (message.action) {
       case 'showPromptDropdown':
-        
-        // Prefer the currently focused element
-        let target = document.activeElement;
-        let editable = this.isInputElement(target) ? this.getEditableRoot(target) : null;
-
-        // Fallback: use current selection's editable root if focus isn't on an input/editor
-        if (!editable) {
-          const sel = window.getSelection && window.getSelection();
-          if (sel && sel.anchorNode) {
-            const anchorEl = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
-            editable = this.getEditableRoot(anchorEl);
-          }
-        }
-
-        if (editable) {
-          this.activeInput = editable;
-          setTimeout(() => { this.activateDropdownMode('hotkey'); }, 10);
+        // Toggle dropdown: hide if visible, show if hidden
+        if (this.isDropdownVisible) {
+          this.resetDropdownMode();
         } else {
-          console.warn('No editable element is focused or selected');
+          const editable = this.findActiveEditableElement();
+          if (editable) {
+            this.activeInput = editable;
+            setTimeout(() => { this.activateDropdownMode('hotkey'); }, this.ACTIVATION_DELAY);
+          }
         }
         break;
 
@@ -187,6 +210,11 @@ class AIPromptAutocomplete {
     return Boolean(this.getEditableRoot(element));
   }
 
+  /**
+   * Find the root editable element for a given element, handling various editor types
+   * @param {Element} element - The element to check
+   * @returns {Element|null} The root editable element or null
+   */
   getEditableRoot(element) {
     if (!element) return null;
 
@@ -235,26 +263,11 @@ class AIPromptAutocomplete {
 
     // Check for specific editor classes
     if (element.classList) {
-      // ProseMirror
-      if (element.classList.contains('ProseMirror')) {
-        return element;
-      }
-      // Lexical (Facebook's editor)
-      if (element.classList.contains('lexical-editor')) {
-        return element;
-      }
-      // Quill
-      if (element.classList.contains('ql-editor')) {
-        return element;
-      }
-      // CodeMirror
-      if (element.classList.contains('CodeMirror-code')) {
-        return element.closest('.CodeMirror');
-      }
-      // Monaco (VS Code editor)
-      if (element.classList.contains('monaco-editor')) {
-        return element.querySelector('.view-lines') || element;
-      }
+      if (element.classList.contains('ProseMirror')) return element;
+      if (element.classList.contains('lexical-editor')) return element;
+      if (element.classList.contains('ql-editor')) return element;
+      if (element.classList.contains('CodeMirror-code')) return element.closest('.CodeMirror');
+      if (element.classList.contains('monaco-editor')) return element.querySelector('.view-lines') || element;
     }
 
     // ContentEditable (including inherited)
@@ -349,23 +362,15 @@ class AIPromptAutocomplete {
       e.preventDefault();
       e.stopPropagation();
       
-      // Use the focused element or selection fallback
-      let target = document.activeElement;
-      let editable = this.isInputElement(target) ? this.getEditableRoot(target) : null;
-
-      if (!editable) {
-        const sel = window.getSelection && window.getSelection();
-        if (sel && sel.anchorNode) {
-          const anchorEl = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
-          editable = this.getEditableRoot(anchorEl);
-        }
-      }
-
-      if (editable) {
-        this.activeInput = editable;
-        setTimeout(() => { this.activateDropdownMode('hotkey'); }, 10);
+      // Toggle dropdown: hide if visible, show if hidden
+      if (this.isDropdownVisible) {
+        this.resetDropdownMode();
       } else {
-        console.warn('No editable element is focused or selected for hotkey');
+        const editable = this.findActiveEditableElement();
+        if (editable) {
+          this.activeInput = editable;
+          setTimeout(() => { this.activateDropdownMode('hotkey'); }, this.ACTIVATION_DELAY);
+        }
       }
       return false;
     }
@@ -387,13 +392,7 @@ class AIPromptAutocomplete {
       return false;
     }
 
-    // When text trigger is active, intercept Enter to prevent form submission
-    if (this.textTriggerActive && e.key === 'Enter') {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      return false;
-    }
+
 
     // Handle dropdown navigation
     if (this.isDropdownVisible) {
@@ -588,15 +587,10 @@ class AIPromptAutocomplete {
     const previewSection = document.createElement('div');
     previewSection.className = 'placeholder-preview';
     
-    const previewLabel = document.createElement('div');
-    previewLabel.className = 'placeholder-preview-label';
-    previewLabel.textContent = 'Preview:';
-    
     const previewContent = document.createElement('div');
     previewContent.className = 'placeholder-preview-content';
     previewContent.id = 'placeholder-preview-text';
     
-    previewSection.appendChild(previewLabel);
     previewSection.appendChild(previewContent);
     scroll.appendChild(previewSection);
     
@@ -611,19 +605,14 @@ class AIPromptAutocomplete {
         fieldDiv.classList.add('active');
       }
       
-      const label = document.createElement('label');
-      label.textContent = placeholder.name;
-      label.className = 'placeholder-label';
-      
       const input = document.createElement('input');
       input.type = 'text';
       input.className = 'placeholder-input';
       input.value = this.placeholderValues[placeholder.name] || '';
-      input.placeholder = placeholder.defaultValue ? `Default: ${placeholder.defaultValue}` : 'Enter value...';
+      input.placeholder = placeholder.defaultValue ? `${placeholder.name} (${placeholder.defaultValue})` : placeholder.name;
       input.setAttribute('data-placeholder-name', placeholder.name);
       input.setAttribute('data-placeholder-index', index);
       
-      fieldDiv.appendChild(label);
       fieldDiv.appendChild(input);
       formSection.appendChild(fieldDiv);
       
@@ -636,6 +625,7 @@ class AIPromptAutocomplete {
       input.addEventListener('focus', () => {
         this.currentPlaceholderIndex = index;
         this.updateActiveField();
+        this.updatePreview();
       });
     });
     
@@ -665,7 +655,7 @@ class AIPromptAutocomplete {
 
       const wrapIfCurrent = (match) => {
         return index === this.currentPlaceholderIndex
-          ? `<span class="current-placeholder">${value}</span>`
+          ? `<span class="current-placeholder" id="current-placeholder-highlight">${value}</span>`
           : value;
       };
 
@@ -676,6 +666,28 @@ class AIPromptAutocomplete {
     });
 
     previewElement.innerHTML = preview;
+    
+    // Scroll the current placeholder into view
+    this.scrollCurrentPlaceholderIntoView();
+  }
+
+  /**
+   * Scroll the currently highlighted placeholder into view in the preview
+   */
+  scrollCurrentPlaceholderIntoView() {
+    const currentHighlight = document.getElementById('current-placeholder-highlight');
+    const previewContainer = document.getElementById('placeholder-preview-text');
+    
+    if (currentHighlight && previewContainer) {
+      // Use a small delay to ensure the DOM has updated
+      setTimeout(() => {
+        currentHighlight.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+      }, 10);
+    }
   }
 
   updateActiveField() {
@@ -714,6 +726,12 @@ class AIPromptAutocomplete {
     return div.innerHTML;
   }
 
+  /**
+   * Check if an event matches the configured hotkey, with cross-platform modifier support
+   * @param {KeyboardEvent} event - The keyboard event
+   * @param {string} hotkey - The hotkey string (e.g., "Ctrl+Shift+P", "Mod+P")
+   * @returns {boolean} True if the event matches the hotkey
+   */
   matchesHotkey(event, hotkey) {
     if (!hotkey) return false;
 
@@ -1211,6 +1229,10 @@ class AIPromptAutocomplete {
     this.insertPrompt(finalContent);
   }
 
+  /**
+   * Insert prompt content into the active input, handling different editor types
+   * @param {string} content - The prompt content to insert
+   */
   insertPrompt(content) {
     if (!this.activeInput) return;
 
@@ -1232,8 +1254,18 @@ class AIPromptAutocomplete {
         const cursorPos = this.isInDropdownMode && this.dropdownModeLastCursorPos >= 0
           ? this.dropdownModeLastCursorPos
           : currentText.length;
-        const start = Math.max(0, Math.min(this.dropdownModeStartPosition, currentText.length));
-        const end = Math.max(start, Math.min(cursorPos, currentText.length));
+        
+        let start = this.dropdownModeStartPosition;
+        let end = cursorPos;
+        
+        // For text trigger mode, also remove the trigger text itself
+        if (this.dropdownModeType === 'textTrigger' && this.settings.textTrigger) {
+          start = this.dropdownModeStartPosition - this.settings.textTrigger.length;
+        }
+        
+        start = Math.max(0, Math.min(start, currentText.length));
+        end = Math.max(start, Math.min(end, currentText.length));
+        
         this.setSelectionByOffsets(this.activeInput, start, end);
         const sel = window.getSelection();
         if (sel && sel.rangeCount) {
@@ -1322,7 +1354,7 @@ class AIPromptAutocomplete {
     // ContentEditable elements
     if (input.isContentEditable || input.contentEditable === 'true') {
       // Special handling for ProseMirror
-      if (input.classList && input.classList.contains('ProseMirror')) {
+      if (this.isProseMirror(input)) {
         // ProseMirror stores content in paragraphs
         const blocks = input.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, blockquote');
         if (blocks.length > 0) {
@@ -1362,7 +1394,7 @@ class AIPromptAutocomplete {
     // ContentEditable elements
     if (input.isContentEditable || input.contentEditable === 'true') {
       // Special handling for ProseMirror
-      if (input.classList && input.classList.contains('ProseMirror')) {
+      if (this.isProseMirror(input)) {
         // Clear existing content
         input.innerHTML = '';
         
@@ -1421,7 +1453,7 @@ class AIPromptAutocomplete {
           const range = document.createRange();
           
           // For ProseMirror, find the last text position
-          if (input.classList && input.classList.contains('ProseMirror')) {
+          if (this.isProseMirror(input)) {
             const lastBlock = input.querySelector('p:last-child, h1:last-child, h2:last-child, h3:last-child, li:last-child');
             if (lastBlock) {
               const textNode = this.findLastTextNode(lastBlock);
@@ -1487,7 +1519,7 @@ class AIPromptAutocomplete {
       const targetPos = Math.max(0, Math.min(position, (input.textContent || '').length));
 
       // Special handling for ProseMirror
-      if (input.classList && input.classList.contains('ProseMirror')) {
+      if (this.isProseMirror(input)) {
         // Walk through block elements to find the correct position
         let remaining = targetPos;
         let found = false;
@@ -1590,6 +1622,13 @@ class AIPromptAutocomplete {
     this.isDropdownVisible = false;
     this.selectedIndex = -1;
     this.filteredPrompts = [];
+    
+    // Restore focus to the active input when closing dropdown
+    if (this.activeInput) {
+      setTimeout(() => {
+        this.activeInput.focus();
+      }, 10);
+    }
   }
 
   isPlaceholderInput(element) {
