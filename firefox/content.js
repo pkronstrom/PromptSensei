@@ -209,10 +209,10 @@ class AIPromptAutocomplete {
       }
     });
 
-    // Handle keyboard events with capture to intercept before any other handlers
+    // Handle keyboard events - use normal bubbling phase to not interfere with other handlers
     document.addEventListener('keydown', (e) => {
       this.handleKeydown(e);
-    }, true); // Use capture phase
+    });
 
     document.addEventListener('input', (e) => {
       if (this.isInputElement(e.target) && !this.isPlaceholderInput(e.target)) {
@@ -343,22 +343,24 @@ class AIPromptAutocomplete {
       return;
     }
 
-    // Handle custom hotkey FIRST (before dropdown checks) - this ensures immediate response
+    // Handle custom hotkey - only when focused on an editable element
     if (this.matchesHotkey(e, this.settings?.hotkey)) {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      // Toggle dropdown: hide if visible, show if hidden
-      if (this.isDropdownVisible) {
-        this.resetDropdownMode();
-      } else {
-        const editable = this.findActiveEditableElement();
-        if (editable) {
+      const editable = this.findActiveEditableElement();
+      if (editable) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Toggle dropdown: hide if visible, show if hidden
+        if (this.isDropdownVisible) {
+          this.resetDropdownMode();
+        } else {
           this.activeInput = editable;
           setTimeout(() => { this.activateDropdownMode('hotkey'); }, this.ACTIVATION_DELAY);
         }
+        return false;
       }
-      return false;
+      // If not focused on an editable element, let the event proceed normally
+      return;
     }
 
     // When dropdown is visible, completely intercept ALL Enter events
@@ -1394,15 +1396,9 @@ class AIPromptAutocomplete {
       this.justInsertedPrompt = true;
       this.resetDropdownMode();
       setTimeout(() => { this.justInsertedPrompt = false; }, 500);
-      setTimeout(() => { 
-        if (this.activeInput) {
-          try {
-            this.activeInput.focus();
-          } catch (e) {
-            // Input may have been removed from DOM
-          }
-        }
-      }, 10);
+      // Stop tracking this input immediately to prevent focusout interference
+      this.activeInput = null;
+      // Don't force focus after insertion - let the page handle focus naturally
       return;
     }
 
@@ -1437,14 +1433,21 @@ class AIPromptAutocomplete {
     this.setCursorPosition(this.activeInput, newCursorPos);
 
     this.justInsertedPrompt = true;
+    
+    // Dispatch input event to notify frameworks  
+    const currentActiveInput = this.activeInput;
     setTimeout(() => {
-      const inputEvent = new Event('input', { bubbles: true });
-      this.activeInput.dispatchEvent(inputEvent);
+      if (currentActiveInput) {
+        const inputEvent = new Event('input', { bubbles: true });
+        currentActiveInput.dispatchEvent(inputEvent);
+      }
     }, 50);
 
     this.resetDropdownMode();
     setTimeout(() => { this.justInsertedPrompt = false; }, 500);
-    setTimeout(() => { this.activeInput && this.activeInput.focus(); }, 10);
+    // Stop tracking this input immediately to prevent focusout interference
+    this.activeInput = null;
+    // Don't force focus after insertion - let the page handle focus naturally
   }
 
   getInputValue(input) {
