@@ -1622,8 +1622,9 @@ class AIPromptAutocomplete {
     this.filteredPrompts = [];
     
     // Restore focus to the active input when closing dropdown
+    // BUT NOT if we just inserted a prompt - let the user navigate freely
     const inputToFocus = this.activeInput;
-    if (inputToFocus) {
+    if (inputToFocus && !this.justInsertedPrompt) {
       setTimeout(() => {
         try {
           inputToFocus.focus();
