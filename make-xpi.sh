@@ -47,6 +47,7 @@ cd firefox
 zip -r "../$XPI_NAME" \
     manifest.json \
     background.js \
+    preact.min.js \
     content.js \
     content.css \
     options.html \

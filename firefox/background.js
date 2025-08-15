@@ -6,7 +6,28 @@ class AIPromptManager {
       textTrigger: 'AI:',
       showInfoBar: true,
       showMouseButtons: true,
-      prompts: []
+      prompts: [
+        {
+          name: "Code Review",
+          content: "Please review this code for:\n1. Potential bugs or issues\n2. Performance improvements\n3. Security vulnerabilities\n4. Code style and best practices\n5. Documentation needs\n\nProvide specific suggestions and examples."
+        },
+        {
+          name: "Debug Helper",
+          content: "I'm debugging this code and encountering [issue]. Please help me:\n1. Identify the root cause\n2. Suggest debugging steps\n3. Provide potential solutions\n4. Recommend tools or techniques\n\nCode: [code]"
+        },
+        {
+          name: "API Documentation",
+          content: "Create comprehensive documentation for this API endpoint:\n\nEndpoint: [endpoint]\nMethod: [method]\nParameters: [parameters]\n\nInclude:\n- Purpose and functionality\n- Request/response examples\n- Error handling\n- Authentication requirements\n- Rate limiting info"
+        },
+        {
+          name: "Email Template",
+          content: "Write a professional email template for [purpose].\n\nRecipient: [recipient]\nContext: [context]\nTone: [tone]\n\nInclude:\n- Clear subject line\n- Professional greeting\n- Main message\n- Call to action\n- Professional closing"
+        },
+        {
+          name: "Meeting Summary",
+          content: "Create a meeting summary for [meeting_topic].\n\nParticipants: [participants]\nDate: [date]\nDuration: [duration]\n\nInclude:\n- Key discussion points\n- Decisions made\n- Action items with owners\n- Next steps\n- Follow-up schedule"
+        }
+      ]
     };
     this.init();
   }
