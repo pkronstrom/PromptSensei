@@ -27,7 +27,7 @@ class OptionsManager {
         this.showPromptModalWithContent(pendingPrompt.content);
       }
     } catch (error) {
-      console.error('Error checking for pending prompt:', error);
+      // Error checking for pending prompt
     }
   }
 
@@ -60,7 +60,6 @@ class OptionsManager {
         };
       }
     } catch (error) {
-      console.error('Error loading settings:', error);
       this.showError('Failed to load settings');
     }
   }
@@ -226,7 +225,7 @@ class OptionsManager {
         }
       });
     } catch (error) {
-      console.error('Error setting up storage listeners:', error);
+      // Error setting up storage listeners
     }
   }
 
@@ -252,7 +251,6 @@ class OptionsManager {
 
       this.showSuccess('Settings saved successfully');
     } catch (error) {
-      console.error('Error saving settings:', error);
       this.showError('Failed to save settings');
     }
   }
@@ -365,7 +363,6 @@ class OptionsManager {
       this.renderPrompts();
       this.hidePromptModal();
     } catch (error) {
-      console.error('Error saving prompt:', error);
       this.showError('Failed to save prompt');
     }
   }
@@ -409,7 +406,6 @@ class OptionsManager {
       this.hideDeleteModal();
       this.showSuccess('Prompt deleted successfully');
     } catch (error) {
-      console.error('Error deleting prompt:', error);
       this.showError('Failed to delete prompt');
     }
   }
@@ -467,7 +463,6 @@ class OptionsManager {
       
       this.showSuccess(`Exported ${exportData.prompts.length} prompts successfully`);
     } catch (error) {
-      console.error('Export error:', error);
       this.showError('Failed to export prompts');
     }
   }
@@ -517,7 +512,6 @@ class OptionsManager {
       // Clear the file input
       document.getElementById('import-file-input').value = '';
     } catch (error) {
-      console.error('Import error:', error);
       this.showError(`Failed to import prompts: ${error.message}`);
       document.getElementById('import-file-input').value = '';
     }

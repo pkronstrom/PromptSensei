@@ -1,16 +1,10 @@
 // Setup Preact renderer - Preact is preloaded via manifest
 const createSecureRenderer = () => {
-  console.log('[Taltio] Setting up Preact renderer...');
-  console.log('[Taltio] window.preact:', !!window.preact);
-  console.log('[Taltio] self.preact:', !!self.preact);
   
   // Preact should be available since it's loaded via manifest before content.js
   const preactLib = window.preact || self.preact;
   
   if (preactLib) {
-    console.log('[Taltio] Found Preact, setting up globals...');
-    console.log('[Taltio] preact.h available:', !!preactLib.h);
-    console.log('[Taltio] preact.render available:', !!preactLib.render);
     
     // Setup global references for convenience
     window.preact = preactLib;
@@ -20,19 +14,15 @@ const createSecureRenderer = () => {
     // Register components
     setupPreactComponents();
     
-    console.log('[Taltio] Preact renderer setup successfully');
     return Promise.resolve();
   } else {
-    console.error('[Taltio] Preact not found - check manifest.json includes preact.min.js');
     return Promise.reject(new Error('Preact not available'));
   }
 };
 
 // Setup Preact components after Preact is loaded
 const setupPreactComponents = () => {
-  console.log('[Taltio] Setting up components - preact:', !!window.preact, 'h:', !!window.h);
   if (!window.preact || !window.h) {
-    console.error('[Taltio] Cannot setup components - Preact not available');
     return;
   }
 
@@ -183,9 +173,6 @@ const setupPreactComponents = () => {
     );
   };
   
-  console.log('[Taltio] Preact components registered successfully');
-  console.log('[Taltio] PromptDropdown registered:', !!window.PromptDropdown);
-  console.log('[Taltio] PlaceholderForm registered:', !!window.PlaceholderForm);
 };
 
 // Performance monitoring for optimization and debugging
@@ -234,7 +221,6 @@ class PerformanceMonitor {
     
     // Log slow operations
     if (duration > 100) {
-      console.warn(`[Taltio Performance] Slow operation: ${timer.operation} took ${duration}ms`);
     }
     
     return result;
@@ -743,7 +729,6 @@ class EventManager {
         try {
           callback(...args);
         } catch (error) {
-          console.error(`[Taltio] Callback error for ${name}:`, error?.message);
         }
       });
     }
@@ -838,21 +823,16 @@ class AIPromptAutocomplete {
     
     try {
       if (this.resources?.isDestroyed) {
-        console.warn('[Taltio] Cannot initialize - resources destroyed');
         return;
       }
 
       // Proceed as soon as the DOM is at least interactive to avoid long delays on SPA pages
       await this.waitForDOM();
-      console.log('[Taltio] DOM ready, attempting to create renderer...');
 
       // Load secure component renderer with error boundary
       try {
-        console.log('[Taltio] Calling createSecureRenderer...');
         await createSecureRenderer();
-        console.log('[Taltio] Renderer created successfully');
       } catch (rendererError) {
-        console.error('[Taltio] Failed to create renderer:', rendererError);
         // Continue without component rendering - use fallback
       }
 
@@ -872,7 +852,6 @@ class AIPromptAutocomplete {
             break;
           }
         } catch (settingsError) {
-          console.warn('[Taltio] Settings fetch attempt failed:', settingsError?.message);
         }
         
         retries--;
@@ -886,17 +865,14 @@ class AIPromptAutocomplete {
         await new Promise(resolve => this.resources.setTimeout(resolve, this.CONSTANTS.TIMEOUTS.FOCUS_DELAY));
       }
 
-      console.log('[Taltio] Extension initialized successfully');
       this.performanceMonitor.endTimer(perfTimer);
       
     } catch (error) {
-      console.error('[Taltio] Critical error during initialization:', error?.message || error);
       this.performanceMonitor.recordError('extension_init');
       this.performanceMonitor.endTimer(perfTimer);
       
       // Only retry if not destroyed and not in an infinite loop
       if (!this.resources?.isDestroyed && error?.message !== 'Extension context invalidated') {
-        console.log('[Taltio] Retrying initialization...');
         this.resources.setTimeout(() => this.init(), this.CONSTANTS.TIMEOUTS.INIT_RETRY_DELAY);
       }
     }
@@ -914,7 +890,6 @@ class AIPromptAutocomplete {
       if (this.performanceMonitor) {
         const report = this.performanceMonitor.getReport();
         if (Object.keys(report.operations).length > 0) {
-          console.log('[Taltio] Final Performance Report:', report);
         }
         this.performanceMonitor.disable();
         this.performanceMonitor = null;
@@ -932,9 +907,7 @@ class AIPromptAutocomplete {
       this.isInDropdownMode = false;
       this.isInPlaceholderMode = false;
       
-      console.log('[Taltio] Extension destroyed and cleaned up');
     } catch (error) {
-      console.error('[Taltio] Error during cleanup:', error);
     }
   }
 
@@ -977,11 +950,9 @@ class AIPromptAutocomplete {
       
       return response;
     } catch (error) {
-      console.error('[Taltio] Error sending message:', error?.message || error, 'Message:', message);
       
       // Handle specific error scenarios
       if (error?.message?.includes('Extension context invalidated')) {
-        console.warn('[Taltio] Extension reloaded, stopping operations');
         this.destroy();
         return null;
       }
@@ -1015,12 +986,10 @@ class AIPromptAutocomplete {
   handleMessage(message) {
     try {
       if (!message || typeof message !== 'object') {
-        console.warn('[Taltio] Invalid message received:', message);
         return;
       }
       
       if (this.resources?.isDestroyed) {
-        console.warn('[Taltio] Message received after destruction, ignoring');
         return;
       }
 
@@ -1042,7 +1011,6 @@ class AIPromptAutocomplete {
               }
             }
           } catch (error) {
-            console.error('[Taltio] Error handling showPromptDropdown:', error?.message);
           }
           break;
 
@@ -1057,7 +1025,6 @@ class AIPromptAutocomplete {
               };
             }
           } catch (error) {
-            console.error('[Taltio] Error updating settings:', error?.message);
           }
           break;
           
@@ -1065,15 +1032,12 @@ class AIPromptAutocomplete {
           try {
             return this.performanceMonitor ? this.performanceMonitor.getReport() : null;
           } catch (error) {
-            console.error('[Taltio] Error getting performance report:', error?.message);
             return null;
           }
           
         default:
-          console.warn('[Taltio] Unknown message action:', message.action);
       }
     } catch (error) {
-      console.error('[Taltio] Critical error in handleMessage:', error?.message || error, 'Message:', message);
       if (this.performanceMonitor) {
         this.performanceMonitor.recordError('message_handling');
       }
@@ -1102,15 +1066,11 @@ class AIPromptAutocomplete {
       
       // Only handle focusout for the main input
       if (e.target === this.activeInput) {
-        console.log('[Taltio] focusout on activeInput, checking if should keep open...');
         this.resources.setTimeout(() => {
-          console.log('[Taltio] focusout timeout - isDropdownVisible:', this.isDropdownVisible, 'shouldKeep:', this.shouldKeepDropdownOpen());
           if (!this.shouldKeepDropdownOpen()) {
-            console.log('[Taltio] Hiding dropdown due to focusout');
             this.resetDropdownMode();
             this.activeInput = null;
           } else {
-            console.log('[Taltio] Keeping dropdown open');
           }
         }, 100);
       }
@@ -1414,12 +1374,8 @@ class AIPromptAutocomplete {
   }
 
   activateDropdownMode(type, startPosition = null) {
-    console.log('[Taltio] activateDropdownMode - settings:', this.settings);
-    console.log('[Taltio] activateDropdownMode - prompts:', this.settings?.prompts);
-    console.log('[Taltio] activateDropdownMode - prompts length:', this.settings?.prompts?.length);
     
     if (!this.settings?.prompts?.length) {
-      console.log('[Taltio] No prompts available, showing no prompts message');
       this.showNoPromptsMessage();
       return;
     }
@@ -1795,41 +1751,33 @@ class AIPromptAutocomplete {
     
     try {
       if (!this.dropdown) {
-        console.warn('[Taltio] Cannot render - dropdown element missing');
         return;
       }
       
       if (this.resources?.isDestroyed) {
-        console.warn('[Taltio] Cannot render - resources destroyed');
         return;
       }
       
       // Skip rendering if dropdown is in the process of being hidden
       if (this.isHiding) {
-        console.log('[Taltio] Skipping render - dropdown is being hidden');
         this.performanceMonitor.endTimer(perfTimer);
         return;
       }
 
       if (!window.preact || !window.render || !window.h || !window.PromptDropdown) {
-        console.warn('[Taltio] Renderer not loaded, attempting to reinitialize...');
-        console.warn('[Taltio] Debug - preact:', !!window.preact, 'render:', !!window.render, 'h:', !!window.h, 'PromptDropdown:', !!window.PromptDropdown);
         
         // Try to re-setup components if Preact is available but components aren't
         if (window.preact && !window.PromptDropdown) {
-          console.log('[Taltio] Preact available but components missing, re-setting up...');
           try {
             window.h = window.preact.h;
             window.render = window.preact.render;
             setupPreactComponents();
           } catch (setupError) {
-            console.error('[Taltio] Failed to re-setup components:', setupError);
           }
         }
         
         // Check again after re-setup attempt
         if (!window.preact || !window.render || !window.h || !window.PromptDropdown) {
-          console.warn('[Taltio] Renderer still not available, falling back to manual rendering');
           return this.renderDropdownFallback();
         }
       }
@@ -1841,7 +1789,6 @@ class AIPromptAutocomplete {
 
       // Render component with error boundary
       try {
-        console.log('[Taltio] Attempting to render component with', this.filteredPrompts?.length || 0, 'prompts');
         const component = window.h(window.PromptDropdown, {
             prompts: this.filteredPrompts || [],
             selectedIndex: this.selectedIndex,
@@ -1852,7 +1799,6 @@ class AIPromptAutocomplete {
                   this.insertSelectedPrompt();
                 }
               } catch (error) {
-                console.error('[Taltio] Error in onSelectPrompt:', error?.message);
               }
             },
             onSelectIndex: (index) => {
@@ -1870,12 +1816,10 @@ class AIPromptAutocomplete {
                         });
                       }
                     } catch (scrollError) {
-                      console.warn('[Taltio] Scroll error:', scrollError?.message);
                     }
                   }, 10);
                 }
               } catch (error) {
-                console.error('[Taltio] Error in onSelectIndex:', error?.message);
               }
             },
             isPlaceholderMode: this.isInPlaceholderMode,
@@ -1889,7 +1833,6 @@ class AIPromptAutocomplete {
                   this.updatePreview();
                 }
               } catch (error) {
-                console.error('[Taltio] Error in onPlaceholderChange:', error?.message);
               }
             },
             onPlaceholderNavigate: (index) => {
@@ -1899,35 +1842,30 @@ class AIPromptAutocomplete {
                   this.updatePreview();
                 }
               } catch (error) {
-                console.error('[Taltio] Error in onPlaceholderNavigate:', error?.message);
               }
             },
             onInsertPrompt: () => {
               try {
                 this.insertPromptWithPlaceholders();
               } catch (error) {
-                console.error('[Taltio] Error in onInsertPrompt:', error?.message);
               }
             },
             onExitPlaceholder: () => {
               try {
                 this.exitPlaceholderMode();
               } catch (error) {
-                console.error('[Taltio] Error in onExitPlaceholder:', error?.message);
               }
             },
             onFilterChange: (value) => {
               try {
                 this.handleInternalFilterChange(value);
               } catch (error) {
-                console.error('[Taltio] Error in onFilterChange:', error?.message);
               }
             },
             filterValue: this.filterValue || '',
             settings: this.settings || {}
           });
         
-        console.log('[Taltio] Component created, now rendering to DOM');
         
         // Update container class for placeholder mode
         if (this.isInPlaceholderMode) {
@@ -1937,20 +1875,12 @@ class AIPromptAutocomplete {
         }
         
         window.render(component, this.dropdown);
-        console.log('[Taltio] Component rendered successfully');
-        console.log('[Taltio] Dropdown element:', this.dropdown);
-        console.log('[Taltio] Dropdown in DOM:', document.body.contains(this.dropdown));
-        console.log('[Taltio] Dropdown styles before positioning:', this.dropdown.style.cssText);
         
         // Position and show the dropdown (skip if just updating content)
         if (!skipPositioning) {
           this.positionDropdown();
         }
-        console.log('[Taltio] Dropdown positioned');
-        console.log('[Taltio] Dropdown styles after positioning:', this.dropdown.style.cssText);
-        console.log('[Taltio] Dropdown position:', this.dropdown.getBoundingClientRect());
       } catch (renderError) {
-        console.error('[Taltio] Component render failed:', renderError?.message);
         this.renderDropdownFallback();
         return;
       }
@@ -1961,7 +1891,6 @@ class AIPromptAutocomplete {
           try {
             this.updatePreview();
           } catch (previewError) {
-            console.warn('[Taltio] Preview update failed:', previewError?.message);
           }
         }, 10);
       }
@@ -1969,7 +1898,6 @@ class AIPromptAutocomplete {
       this.performanceMonitor.endTimer(perfTimer);
       
     } catch (error) {
-      console.error('[Taltio] Critical error in renderDropdown:', error?.message || error);
       this.performanceMonitor.recordError('dropdown_render');
       this.performanceMonitor.endTimer(perfTimer);
       this.renderDropdownFallback();
@@ -1986,18 +1914,15 @@ class AIPromptAutocomplete {
   positionDropdown() {
     try {
       if (!this.dropdown) {
-        console.warn('[Taltio] No dropdown to position');
         return;
       }
       
       if (this.resources?.isDestroyed) {
-        console.warn('[Taltio] Cannot position - resources destroyed');
         return;
       }
 
       // Use single requestAnimationFrame for smoother positioning
       requestAnimationFrame(() => {
-        console.log('[Taltio] Inside requestAnimationFrame for positioning');
         try {
           let top, left, width;
           const viewportHeight = window.innerHeight || 600;
@@ -2017,7 +1942,6 @@ class AIPromptAutocomplete {
             try {
               targetRect = this.getCaretClientRect(this.activeInput);
             } catch (caretError) {
-              console.warn('[Taltio] Caret position failed:', caretError?.message);
               targetRect = null;
             }
             
@@ -2026,7 +1950,6 @@ class AIPromptAutocomplete {
               try {
                 targetRect = this.activeInput?.getBoundingClientRect();
               } catch (rectError) {
-                console.warn('[Taltio] Element rect failed:', rectError?.message);
                 targetRect = null;
               }
             }
@@ -2035,7 +1958,6 @@ class AIPromptAutocomplete {
             try {
               targetRect = this.activeInput ? this.activeInput.getBoundingClientRect() : null;
             } catch (rectError) {
-              console.warn('[Taltio] Input rect failed:', rectError?.message);
               targetRect = null;
             }
           }
@@ -2078,34 +2000,18 @@ class AIPromptAutocomplete {
           top = Math.max(currentScrollY + 10, Math.min(top, currentScrollY + viewportHeight - dropdownHeight - 10));
 
           // Apply positioning and make visible in one go
-          console.log('[Taltio] About to apply positioning - top:', top, 'left:', left, 'width:', width);
           if (this.dropdown && !this.resources?.isDestroyed) {
-            console.log('[Taltio] Applying styles to dropdown');
             this.dropdown.style.top = `${Math.round(top)}px`;
             this.dropdown.style.left = `${Math.round(left)}px`;
             // Don't override width - let CSS handle it (500px)
             this.dropdown.style.height = 'auto';
             this.dropdown.style.zIndex = '10000';
             this.dropdown.style.opacity = '1';
-            console.log('[Taltio] Styles applied, final styles:', this.dropdown.style.cssText);
-            console.log('[Taltio] Dropdown innerHTML length:', this.dropdown.innerHTML.length);
-            console.log('[Taltio] Dropdown classList:', Array.from(this.dropdown.classList));
-            console.log('[Taltio] Dropdown computed display:', window.getComputedStyle(this.dropdown).display);
-            console.log('[Taltio] Dropdown computed visibility:', window.getComputedStyle(this.dropdown).visibility);
-            console.log('[Taltio] Dropdown computed height:', window.getComputedStyle(this.dropdown).height);
-            console.log('[Taltio] Dropdown computed maxHeight:', window.getComputedStyle(this.dropdown).maxHeight);
-            console.log('[Taltio] Dropdown offsetHeight:', this.dropdown.offsetHeight);
-            console.log('[Taltio] Dropdown scrollHeight:', this.dropdown.scrollHeight);
-            console.log('[Taltio] First child element:', this.dropdown.firstElementChild);
             if (this.dropdown.firstElementChild) {
-              console.log('[Taltio] First child height:', this.dropdown.firstElementChild.offsetHeight);
-              console.log('[Taltio] First child computed height:', window.getComputedStyle(this.dropdown.firstElementChild).height);
             }
           } else {
-            console.log('[Taltio] Cannot apply styles - dropdown:', !!this.dropdown, 'destroyed:', !!this.resources?.isDestroyed);
           }
         } catch (positionError) {
-          console.error('[Taltio] Positioning calculation failed:', positionError?.message);
           
           // Emergency fallback positioning
           if (this.dropdown && !this.resources?.isDestroyed) {
@@ -2119,7 +2025,6 @@ class AIPromptAutocomplete {
       });
       
     } catch (error) {
-      console.error('[Taltio] Critical error in positionDropdown:', error?.message || error);
     }
   }
 
@@ -2376,29 +2281,24 @@ class AIPromptAutocomplete {
     
     try {
       if (!this.activeInput) {
-        console.warn('[Taltio] No active input for prompt insertion');
         return;
       }
       
       if (this.resources?.isDestroyed) {
-        console.warn('[Taltio] Cannot insert - resources destroyed');
         return;
       }
       
       if (!content || typeof content !== 'string') {
-        console.warn('[Taltio] Invalid content for insertion:', content);
         return;
       }
 
       // Verify input still exists in DOM
       try {
         if (!document.body.contains(this.activeInput)) {
-          console.warn('[Taltio] Active input no longer in DOM');
           this.activeInput = null;
           return;
         }
       } catch (domError) {
-        console.warn('[Taltio] DOM check failed:', domError?.message);
         return;
       }
 
@@ -2415,7 +2315,6 @@ class AIPromptAutocomplete {
         try {
           this.activeInput.focus();
         } catch (focusError) {
-          console.warn('[Taltio] Focus failed - input may have been removed:', focusError?.message);
           this.activeInput = null;
           return;
         }
@@ -2447,12 +2346,10 @@ class AIPromptAutocomplete {
                 try { 
                   r.deleteContents(); 
                 } catch (deleteError) {
-                  console.warn('[Taltio] Content deletion failed:', deleteError?.message);
                 }
               }
             }
           } catch (selectionError) {
-            console.warn('[Taltio] Selection handling failed:', selectionError?.message);
           }
         }
 
@@ -2463,7 +2360,6 @@ class AIPromptAutocomplete {
             throw new Error('execCommand failed');
           }
         } catch (execError) {
-          console.warn('[Taltio] execCommand failed, using fallback:', execError?.message);
           // Fallback: use selection API
           try {
             const sel = window.getSelection();
@@ -2477,7 +2373,6 @@ class AIPromptAutocomplete {
               sel.addRange(range);
             }
           } catch (fallbackError) {
-            console.error('[Taltio] All insertion methods failed:', fallbackError?.message);
             return;
           }
         }
@@ -2487,7 +2382,6 @@ class AIPromptAutocomplete {
           const inputEvent = new Event('input', { bubbles: true });
           this.activeInput.dispatchEvent(inputEvent);
         } catch (eventError) {
-          console.warn('[Taltio] Input event dispatch failed:', eventError?.message);
         }
 
         // Reset dropdown mode and flags
@@ -2519,7 +2413,6 @@ class AIPromptAutocomplete {
       try {
         const currentValue = this.inputManager.getInputValue(this.activeInput);
         if (typeof currentValue !== 'string') {
-          console.warn('[Taltio] Could not get input value');
           return;
         }
         
@@ -2551,7 +2444,6 @@ class AIPromptAutocomplete {
         this.inputManager.setInputValue(this.activeInput, newValue);
         this.inputManager.setCursorPosition(this.activeInput, newCursorPos);
       } catch (valueError) {
-        console.error('[Taltio] Value-based insertion failed:', valueError?.message);
         return;
       }
 
@@ -2568,7 +2460,6 @@ class AIPromptAutocomplete {
             inputToRestoreFocus.dispatchEvent(inputEvent);
           }
         } catch (eventError) {
-          console.warn('[Taltio] Delayed input event failed:', eventError?.message);
         }
       }, 50);
 
@@ -2592,7 +2483,6 @@ class AIPromptAutocomplete {
       this.performanceMonitor.endTimer(perfTimer);
       
     } catch (error) {
-      console.error('[Taltio] Critical error in insertPrompt:', error?.message || error);
       this.performanceMonitor.recordError('prompt_insertion');
       this.performanceMonitor.endTimer(perfTimer);
       // Clean up state on critical error
@@ -2604,9 +2494,6 @@ class AIPromptAutocomplete {
 
 
   hideDropdown() {
-    console.log('[Taltio] hideDropdown called');
-    console.trace('[Taltio] hideDropdown call stack');
-    
     // Set hiding flag to prevent re-rendering during hide process
     this.isHiding = true;
     
@@ -2615,7 +2502,6 @@ class AIPromptAutocomplete {
       this.dropdown.style.opacity = '0';
       this.resources.setTimeout(() => {
         if (this.dropdown) {
-          console.log('[Taltio] Removing dropdown from DOM');
           this.dropdown.remove();
           this.dropdown = null;
         }
@@ -2719,7 +2605,6 @@ class AIPromptAutocomplete {
       return true;
     }
     
-    console.log('[Taltio] shouldKeepDropdownOpen - dropdown:', !!this.dropdown, 'visible:', this.isDropdownVisible, 'placeholderMode:', this.isInPlaceholderMode, 'dropdownMode:', this.isInDropdownMode, 'activeElement:', activeElement?.tagName);
     
     return false;
   }

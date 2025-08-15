@@ -19,7 +19,6 @@ class AIPromptManager {
       result = await browser.storage.sync.get(['settings']);
       this.storageArea = 'sync';
     } catch (error) {
-
       result = await browser.storage.local.get(['settings']);
       this.storageArea = 'local';
     }
@@ -136,7 +135,7 @@ class AIPromptManager {
         browser.tabs.sendMessage(tabs[0].id, { action: 'showPromptDropdown' });
       }
     } catch (error) {
-      console.error('Error triggering prompt dropdown:', error);
+      // Error triggering prompt dropdown
     }
   }
 
@@ -153,7 +152,7 @@ class AIPromptManager {
         });
       });
     } catch (error) {
-      console.error('Error broadcasting settings update:', error);
+      // Error broadcasting settings update
     }
   }
 }
@@ -200,7 +199,6 @@ browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         throw new Error(`Unknown action: ${message.action}`);
     }
   } catch (error) {
-    console.error('Background script error:', error);
     return { error: error.message };
   }
 });

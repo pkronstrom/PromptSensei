@@ -142,22 +142,16 @@
         // Add some visual feedback for testing
         document.addEventListener('keydown', function(e) {
             if (e.ctrlKey && e.shiftKey && e.key === 'P') {
-                console.log('Hotkey detected: Ctrl+Shift+P');
-                // Also check if extension components are loaded
-                setTimeout(() => {
-                    console.log('Preact available:', !!window.preact);
-                    console.log('PromptDropdown component:', !!window.PromptDropdown);
-                    console.log('PlaceholderForm component:', !!window.PlaceholderForm);
-                }, 100);
+                // Hotkey detected: Ctrl+Shift+P
             }
             if (e.key === 'Escape') {
-                console.log('ESC key pressed');
+                // ESC key pressed
             }
         });
 
         document.addEventListener('input', function(e) {
             if (e.target.value && e.target.value.includes('AI:')) {
-                console.log('Text trigger detected:', e.target.value);
+                // Text trigger detected
             }
         });
 
