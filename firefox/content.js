@@ -563,7 +563,11 @@ class InputManager {
     // Universal contenteditable handling - use browser's native text replacement
     if (input.isContentEditable || input.contentEditable === 'true') {
       // Focus and select all content, then use execCommand to replace
+      // Set flag to prevent focusin handler from interfering
+      this.isRestoringFocus = true;
       input.focus();
+      // Clear flag immediately since this is not a restoration operation
+      this.isRestoringFocus = false;
       
       // Select all content
       const selection = window.getSelection();
@@ -772,6 +776,7 @@ class AIPromptAutocomplete {
     this.dropdownModeType = null; // 'hotkey' or 'textTrigger'
     this.dropdownModeLastCursorPos = -1;
     this.justInsertedPrompt = false;
+    this.isRestoringFocus = false;
 
     // Placeholder form state
     this.isInPlaceholderMode = false;
@@ -1040,6 +1045,11 @@ class AIPromptAutocomplete {
   setupEventListeners() {
     // Monitor all input fields
     this.resources.addEventListener(document, 'focusin', (e) => {
+      // Don't interfere if we're currently restoring focus programmatically
+      if (this.isRestoringFocus) {
+        return;
+      }
+      
       const editableRoot = this.inputManager.getEditableRoot(e.target);
       
       if (editableRoot && !this.isPlaceholderInput(e.target)) {
@@ -1313,12 +1323,20 @@ class AIPromptAutocomplete {
               
               // Restore focus to original input
               if (inputToRestoreFocus && document.body.contains(inputToRestoreFocus)) {
+                // Set flag to prevent focusin handler from interfering
+                this.isRestoringFocus = true;
+                
                 this.resources.setTimeout(() => {
                   try {
                     inputToRestoreFocus.focus({ preventScroll: true });
                   } catch (e) {
                     // Input may have been removed from DOM
                   }
+                  
+                  // Clear the flag after focus restoration
+                  this.resources.setTimeout(() => {
+                    this.isRestoringFocus = false;
+                  }, 10);
                 }, 10);
               }
             }
@@ -2401,6 +2419,9 @@ class AIPromptAutocomplete {
     // Focus restoration after insertion is handled separately in insertion methods
     const inputToFocus = this.activeInput;
     if (inputToFocus && !this.justInsertedPrompt && this.shouldRestoreFocus()) {
+      // Set flag to prevent focusin handler from interfering
+      this.isRestoringFocus = true;
+      
       this.resources.setTimeout(() => {
         try {
           // Double check that focus restoration is still appropriate
@@ -2410,6 +2431,11 @@ class AIPromptAutocomplete {
         } catch (e) {
           // Input may have been removed from DOM
         }
+        
+        // Clear the flag after focus restoration
+        this.resources.setTimeout(() => {
+          this.isRestoringFocus = false;
+        }, 10);
       }, 10);
     }
   }
@@ -2601,6 +2627,10 @@ class AIPromptAutocomplete {
   // Utility function for consistent focus restoration
   restoreFocusAfterDelay(element, delay = 50) {
     if (!element) return;
+    
+    // Set flag to prevent focusin handler from interfering
+    this.isRestoringFocus = true;
+    
     this.resources.setTimeout(() => {
       if (element && document.body.contains(element)) {
         try {
@@ -2609,6 +2639,11 @@ class AIPromptAutocomplete {
           // Element may have been removed from DOM
         }
       }
+      
+      // Clear the flag after focus restoration
+      this.resources.setTimeout(() => {
+        this.isRestoringFocus = false;
+      }, 10);
     }, delay);
   }
 
@@ -2619,8 +2654,13 @@ class AIPromptAutocomplete {
 
     // Focus to ensure selection operations apply
     try {
+      // Set flag to prevent focusin handler from interfering during insertion
+      this.isRestoringFocus = true;
       this.activeInput.focus();
+      // Clear flag immediately since this is not a restoration operation
+      this.isRestoringFocus = false;
     } catch (focusError) {
+      this.isRestoringFocus = false;
       this.activeInput = null;
       return false;
     }
