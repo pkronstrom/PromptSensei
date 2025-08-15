@@ -146,7 +146,7 @@ const setupPreactComponents = () => {
     return h('div', { className: 'ai-prompt-dropdown' },
       h('div', { className: 'ai-scroll' },
         prompts.length === 0 
-          ? null // Don't show "No prompts found" during transitions - use showNoPromptsMessage() instead
+          ? (filterValue ? h('div', { className: 'ai-prompt-no-results' }, `No prompts match "${filterValue}"`) : null)
           : prompts.map((prompt, index) => 
               h('div', {
                 key: prompt.name + index,
@@ -482,7 +482,9 @@ class InputManager {
             if (ce) return ce;
           }
         }
-      } catch {}
+      } catch (e) {
+        // DOM query failed, continue with fallback approach
+      }
     }
 
     // Traverse ancestors to find an editable element
@@ -744,17 +746,9 @@ class AIPromptAutocomplete {
     // Constants
     this.CONSTANTS = {
       TIMEOUTS: {
-        ACTIVATION_DELAY: 10,
-        FOCUS_DELAY: 50,
-        RENDER_DELAY: 10,
-        AUTO_HIDE_DELAY: 3000,
         RETRY_DELAY: 200,
-        INIT_RETRY_DELAY: 1000
-      },
-      DIMENSIONS: {
-        MIN_TEXTAREA_SIZE: 2,
-        DROPDOWN_HEIGHT: 300,
-        PREVIEW_MAX_LENGTH: 100
+        INIT_RETRY_DELAY: 1000,
+        RESET_FLAG_DELAY: 100
       }
     };
     
@@ -773,7 +767,6 @@ class AIPromptAutocomplete {
     this.filteredPrompts = [];
     this.filterValue = ''; // Internal filter value
     this.isDropdownVisible = false;
-    this.isHiding = false; // Flag to prevent re-rendering during dropdown hide
     this.isInDropdownMode = false; // Unified mode for both hotkey and text trigger
     this.dropdownModeStartPosition = -1;
     this.dropdownModeType = null; // 'hotkey' or 'textTrigger'
@@ -797,7 +790,9 @@ class AIPromptAutocomplete {
         const messageHandler = (message) => this.handleMessage(message);
         browser.runtime.onMessage.addListener(messageHandler);
         this._messageRegistered = true;
-      } catch (_) {}
+      } catch (e) {
+        // Extension API not available, running in non-extension environment
+      }
     }
 
     // Register DOM/input listeners immediately
@@ -862,7 +857,7 @@ class AIPromptAutocomplete {
 
       // Small delay to ensure page is fully rendered
       if (!this.resources?.isDestroyed) {
-        await new Promise(resolve => this.resources.setTimeout(resolve, this.CONSTANTS.TIMEOUTS.FOCUS_DELAY));
+        // Focus immediately without delay
       }
 
       this.performanceMonitor.endTimer(perfTimer);
@@ -1003,11 +998,9 @@ class AIPromptAutocomplete {
               const editable = this.findActiveEditableElement();
               if (editable && !this.resources?.isDestroyed) {
                 this.activeInput = editable;
-                this.resources.setTimeout(() => { 
-                  if (!this.resources?.isDestroyed) {
-                    this.activateDropdownMode('hotkey'); 
-                  }
-                }, this.CONSTANTS.TIMEOUTS.ACTIVATION_DELAY);
+                if (!this.resources?.isDestroyed) {
+                  this.activateDropdownMode('hotkey'); 
+                }
               }
             }
           } catch (error) {
@@ -1248,7 +1241,7 @@ class AIPromptAutocomplete {
             this.resetDropdownMode();
           } else {
             this.activeInput = editable;
-            this.resources.setTimeout(() => { this.activateDropdownMode('hotkey'); }, this.CONSTANTS.TIMEOUTS.ACTIVATION_DELAY);
+            this.activateDropdownMode('hotkey');
           }
           return false;
         }
@@ -1444,8 +1437,6 @@ class AIPromptAutocomplete {
   }
 
   resetDropdownMode() {
-    // Set hiding flag immediately to prevent renders during reset
-    this.isHiding = true;
     this.isInDropdownMode = false;
     this.dropdownModeType = null;
     this.dropdownModeStartPosition = -1;
@@ -1562,7 +1553,7 @@ class AIPromptAutocomplete {
             activeInput.select();
           } else if (this.isInPlaceholderMode) {
             // Retry if element isn't rendered yet, but only if still in placeholder mode
-            this.resources.setTimeout(() => this.focusCurrentPlaceholder(), 10);
+            this.focusCurrentPlaceholder();
           }
         }
       });
@@ -1707,10 +1698,15 @@ class AIPromptAutocomplete {
         .map(item => item.prompt);
     }
 
-    // Check if filtering resulted in no matches
+    // Check if filtering resulted in no matches - let the Preact component handle the display
     if (this.filteredPrompts.length === 0 && queryLower) {
-      // Show "no matches" message for filtered results
-      this.showNoMatchesMessage(queryLower);
+      // Still create dropdown and render to show "no matches" message
+      if (!this.dropdown || !this.isDropdownVisible) {
+        this.createDropdown();
+        this.positionDropdown();
+        this.isDropdownVisible = true;
+      }
+      this.renderDropdown();
       this.performanceMonitor.endTimer(perfTimer);
       return;
     }
@@ -1778,8 +1774,8 @@ class AIPromptAutocomplete {
         return;
       }
       
-      // Skip rendering if dropdown is in the process of being hidden
-      if (this.isHiding) {
+      // Skip rendering if dropdown is not in active mode
+      if (!this.isInDropdownMode) {
         this.performanceMonitor.endTimer(perfTimer);
         return;
       }
@@ -2084,10 +2080,15 @@ class AIPromptAutocomplete {
       try {
         tempRange.insertNode(marker);
         const markerRect = marker.getBoundingClientRect();
-        marker.parentNode && marker.parentNode.removeChild(marker);
+        if (marker.parentNode) marker.parentNode.removeChild(marker);
         return markerRect && (markerRect.width || markerRect.height) ? markerRect : null;
-      } catch {
-        try { marker.parentNode && marker.parentNode.removeChild(marker); } catch {}
+      } catch (e) {
+        // Clean up marker on error
+        try { 
+          if (marker.parentNode) marker.parentNode.removeChild(marker); 
+        } catch (cleanupError) {
+          // Marker cleanup failed, but continue
+        }
         return null;
       }
     }
@@ -2331,175 +2332,38 @@ class AIPromptAutocomplete {
       // If contenteditable and likely controlled by an editor (e.g., ProseMirror),
       // operate via selection + execCommand to let the editor handle DOM/state.
       if (this.activeInput.isContentEditable || this.activeInput.contentEditable === 'true') {
-        // Set flag BEFORE any DOM manipulation to prevent input events from triggering filtering
-        this.justInsertedPrompt = true;
-
-        // Focus to ensure selection operations apply
-        try {
-          this.activeInput.focus();
-        } catch (focusError) {
-          this.activeInput = null;
-          return;
-        }
-
-        // When in dropdown mode, remove the filter region first
-        if (this.isInDropdownMode && this.dropdownModeStartPosition >= 0) {
-          try {
-            const currentText = this.inputManager.getInputValue(this.activeInput);
-            if (typeof currentText === 'string') {
-              const cursorPos = this.isInDropdownMode && this.dropdownModeLastCursorPos >= 0
-                ? this.dropdownModeLastCursorPos
-                : currentText.length;
-              
-              let start = this.dropdownModeStartPosition;
-              let end = cursorPos;
-              
-              // For text trigger mode, also remove the trigger text itself
-              if (this.dropdownModeType === 'textTrigger' && this.settings?.textTrigger) {
-                start = this.dropdownModeStartPosition - this.settings.textTrigger.length;
-              }
-              
-              start = Math.max(0, Math.min(start, currentText.length));
-              end = Math.max(start, Math.min(end, currentText.length));
-              
-              this.setSelectionByOffsets(this.activeInput, start, end);
-              const sel = window.getSelection();
-              if (sel?.rangeCount) {
-                const r = sel.getRangeAt(0);
-                try { 
-                  r.deleteContents(); 
-                } catch (deleteError) {
-                }
-              }
-            }
-          } catch (selectionError) {
-          }
-        }
-
-        // Insert text via execCommand (widely supported by editors)
-        try {
-          const success = document.execCommand('insertText', false, processedContent);
-          if (!success) {
-            throw new Error('execCommand failed');
-          }
-        } catch (execError) {
-          // Fallback: use selection API
-          try {
-            const sel = window.getSelection();
-            if (sel?.rangeCount) {
-              const range = sel.getRangeAt(0);
-              range.deleteContents();
-              const textNode = document.createTextNode(processedContent);
-              range.insertNode(textNode);
-              range.collapse(false);
-              sel.removeAllRanges();
-              sel.addRange(range);
-            }
-          } catch (fallbackError) {
-            return;
-          }
-        }
-
-        // Dispatch input event to notify frameworks
-        try {
-          const inputEvent = new Event('input', { bubbles: true });
-          this.activeInput.dispatchEvent(inputEvent);
-        } catch (eventError) {
-        }
-        
-        // Store activeInput for focus restoration before resetting
         const inputToRestoreFocus = this.activeInput;
         
-        this.resetDropdownMode();
-        this.resources.setTimeout(() => { this.justInsertedPrompt = false; }, 500);
-        
-        // Restore focus to original input after a brief delay
-        this.resources.setTimeout(() => {
-          if (inputToRestoreFocus && document.body.contains(inputToRestoreFocus)) {
-            try {
-              inputToRestoreFocus.focus({ preventScroll: true });
-            } catch (e) {
-              // Input may have been removed from DOM
-            }
-          }
-        }, 50);
-        
-        // Stop tracking this input to prevent focusout interference
-        this.activeInput = null;
+        if (this.insertIntoContentEditable(processedContent)) {
+          this.resetDropdownMode();
+          this.resources.setTimeout(() => { this.justInsertedPrompt = false; }, this.CONSTANTS.TIMEOUTS.RESET_FLAG_DELAY);
+          this.restoreFocusAfterDelay(inputToRestoreFocus);
+          this.activeInput = null;
+        }
         return;
       }
 
       // Fallback: value-based replace for INPUT/TEXTAREA
-      try {
-        // Set flag BEFORE any value manipulation to prevent input events from triggering filtering
-        this.justInsertedPrompt = true;
-
-        const currentValue = this.inputManager.getInputValue(this.activeInput);
-        if (typeof currentValue !== 'string') {
-          return;
-        }
-        
-        let cursorPos = this.isInDropdownMode && this.dropdownModeLastCursorPos >= 0
-          ? this.dropdownModeLastCursorPos
-          : this.inputManager.getCursorPosition(this.activeInput);
-        cursorPos = Math.max(0, Math.min(cursorPos, currentValue.length));
-
-        let newValue, newCursorPos;
-
-        if (this.isInDropdownMode && this.dropdownModeStartPosition >= 0) {
-          const beforeStart = currentValue.substring(0, this.dropdownModeStartPosition);
-          const afterCursor = currentValue.substring(cursorPos);
-          if (this.dropdownModeType === 'textTrigger' && this.settings?.textTrigger) {
-            const triggerStart = this.dropdownModeStartPosition - this.settings.textTrigger.length;
-            newValue = currentValue.substring(0, triggerStart) + processedContent + afterCursor;
-            newCursorPos = triggerStart + processedContent.length;
-          } else {
-            newValue = beforeStart + processedContent + afterCursor;
-            newCursorPos = beforeStart.length + processedContent.length;
-          }
-        } else {
-          const beforeCursor = currentValue.substring(0, cursorPos);
-          const afterCursor = currentValue.substring(cursorPos);
-          newValue = beforeCursor + processedContent + afterCursor;
-          newCursorPos = cursorPos + processedContent.length;
-        }
-
-        this.inputManager.setInputValue(this.activeInput, newValue);
-        this.inputManager.setCursorPosition(this.activeInput, newCursorPos);
-      } catch (valueError) {
-        return;
-      }
-      
-      // Store activeInput for focus restoration before resetting
       const inputToRestoreFocus = this.activeInput;
       
-      // Dispatch input event to notify frameworks  
-      this.resources.setTimeout(() => {
-        try {
-          if (inputToRestoreFocus && document.body.contains(inputToRestoreFocus)) {
-            const inputEvent = new Event('input', { bubbles: true });
-            inputToRestoreFocus.dispatchEvent(inputEvent);
-          }
-        } catch (eventError) {
-        }
-      }, 50);
-
-      this.resetDropdownMode();
-      this.resources.setTimeout(() => { this.justInsertedPrompt = false; }, 500);
-      
-      // Restore focus to original input after a brief delay
-      this.resources.setTimeout(() => {
-        if (inputToRestoreFocus && document.body.contains(inputToRestoreFocus)) {
+      if (this.insertIntoInputElement(processedContent)) {
+        // Dispatch input event to notify frameworks  
+        this.resources.setTimeout(() => {
           try {
-            inputToRestoreFocus.focus({ preventScroll: true });
-          } catch (e) {
-            // Input may have been removed from DOM
+            if (inputToRestoreFocus && document.body.contains(inputToRestoreFocus)) {
+              const inputEvent = new Event('input', { bubbles: true });
+              inputToRestoreFocus.dispatchEvent(inputEvent);
+            }
+          } catch (eventError) {
+            // Event dispatch failed
           }
-        }
-      }, 100);
-      
-      // Stop tracking this input to prevent focusout interference
-      this.activeInput = null;
+        }, 50);
+
+        this.resetDropdownMode();
+        this.resources.setTimeout(() => { this.justInsertedPrompt = false; }, this.CONSTANTS.TIMEOUTS.RESET_FLAG_DELAY);
+        this.restoreFocusAfterDelay(inputToRestoreFocus, 100);
+        this.activeInput = null;
+      }
       
       this.performanceMonitor.endTimer(perfTimer);
       
@@ -2515,9 +2379,6 @@ class AIPromptAutocomplete {
 
 
   hideDropdown() {
-    // Set hiding flag to prevent re-rendering during hide process
-    this.isHiding = true;
-    
     if (this.dropdown) {
       // Fade out smoothly before removing
       this.dropdown.style.opacity = '0';
@@ -2528,12 +2389,10 @@ class AIPromptAutocomplete {
         }
         // Clear filtered prompts after DOM removal to prevent flashing
         this.filteredPrompts = [];
-        this.isHiding = false; // Reset hiding flag
       }, 150); // Match CSS transition duration
     } else {
       // No dropdown element, just clean up immediately
       this.filteredPrompts = [];
-      this.isHiding = false;
     }
     this.isDropdownVisible = false;
     this.selectedIndex = -1;
@@ -2702,11 +2561,6 @@ class AIPromptAutocomplete {
     
     this.positionDropdown();
     this.isDropdownVisible = true;
-
-    // Auto-hide after 3 seconds
-    this.resources.setTimeout(() => {
-      this.hideDropdown();
-    }, 3000);
   }
 
   showNoMatchesMessage(query) {
@@ -2721,7 +2575,7 @@ class AIPromptAutocomplete {
     if (window.preact && window.render && window.h) {
       window.render(
         window.h('div', { className: 'ai-prompt-no-results' },
-          `No prompts match "${query}"`
+          `No matches for filter`
         ),
         this.dropdown
       );
@@ -2729,7 +2583,7 @@ class AIPromptAutocomplete {
       // Fallback
       this.dropdown.innerHTML = `
         <div class="ai-prompt-no-results">
-          No prompts match "${this.escapeHtml(query)}"
+          No matches for filter
         </div>
       `;
     }
@@ -2742,6 +2596,149 @@ class AIPromptAutocomplete {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // Utility function for consistent focus restoration
+  restoreFocusAfterDelay(element, delay = 50) {
+    if (!element) return;
+    this.resources.setTimeout(() => {
+      if (element && document.body.contains(element)) {
+        try {
+          element.focus({ preventScroll: true });
+        } catch (e) {
+          // Element may have been removed from DOM
+        }
+      }
+    }, delay);
+  }
+
+  // Handle text insertion for contentEditable elements
+  insertIntoContentEditable(processedContent) {
+    // Set flag BEFORE any DOM manipulation to prevent input events from triggering filtering
+    this.justInsertedPrompt = true;
+
+    // Focus to ensure selection operations apply
+    try {
+      this.activeInput.focus();
+    } catch (focusError) {
+      this.activeInput = null;
+      return false;
+    }
+
+    // When in dropdown mode, remove the filter region first
+    if (this.isInDropdownMode && this.dropdownModeStartPosition >= 0) {
+      this.removeFilterRegion();
+    }
+
+    // Insert text via execCommand (widely supported by editors)
+    try {
+      const success = document.execCommand('insertText', false, processedContent);
+      if (!success) {
+        throw new Error('execCommand failed');
+      }
+    } catch (execError) {
+      // Fallback: use selection API
+      try {
+        const sel = window.getSelection();
+        if (sel?.rangeCount) {
+          const range = sel.getRangeAt(0);
+          range.deleteContents();
+          const textNode = document.createTextNode(processedContent);
+          range.insertNode(textNode);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      } catch (fallbackError) {
+        return false;
+      }
+    }
+
+    // Dispatch input event to notify frameworks
+    try {
+      const inputEvent = new Event('input', { bubbles: true });
+      this.activeInput.dispatchEvent(inputEvent);
+    } catch (eventError) {
+      // Event dispatch failed, but insertion succeeded
+    }
+    
+    return true;
+  }
+
+  // Helper to remove filter region for dropdown mode
+  removeFilterRegion() {
+    try {
+      const currentText = this.inputManager.getInputValue(this.activeInput);
+      if (typeof currentText === 'string') {
+        const cursorPos = this.isInDropdownMode && this.dropdownModeLastCursorPos >= 0
+          ? this.dropdownModeLastCursorPos
+          : currentText.length;
+        
+        let start = this.dropdownModeStartPosition;
+        let end = cursorPos;
+        
+        // For text trigger mode, also remove the trigger text itself
+        if (this.dropdownModeType === 'textTrigger' && this.settings?.textTrigger) {
+          start = this.dropdownModeStartPosition - this.settings.textTrigger.length;
+        }
+        
+        start = Math.max(0, Math.min(start, currentText.length));
+        end = Math.max(start, Math.min(end, currentText.length));
+        
+        this.setSelectionByOffsets(this.activeInput, start, end);
+        const sel = window.getSelection();
+        if (sel?.rangeCount) {
+          const r = sel.getRangeAt(0);
+          try { 
+            r.deleteContents(); 
+          } catch (deleteError) {
+            // Delete failed, continue
+          }
+        }
+      }
+    } catch (selectionError) {
+      // Selection manipulation failed, continue with insertion
+    }
+  }
+
+  // Handle text insertion for INPUT/TEXTAREA elements
+  insertIntoInputElement(processedContent) {
+    // Set flag BEFORE any value manipulation to prevent input events from triggering filtering
+    this.justInsertedPrompt = true;
+
+    const currentValue = this.inputManager.getInputValue(this.activeInput);
+    if (typeof currentValue !== 'string') {
+      return false;
+    }
+    
+    let cursorPos = this.isInDropdownMode && this.dropdownModeLastCursorPos >= 0
+      ? this.dropdownModeLastCursorPos
+      : this.inputManager.getCursorPosition(this.activeInput);
+    cursorPos = Math.max(0, Math.min(cursorPos, currentValue.length));
+
+    let newValue, newCursorPos;
+
+    if (this.isInDropdownMode && this.dropdownModeStartPosition >= 0) {
+      const beforeStart = currentValue.substring(0, this.dropdownModeStartPosition);
+      const afterCursor = currentValue.substring(cursorPos);
+      if (this.dropdownModeType === 'textTrigger' && this.settings?.textTrigger) {
+        const triggerStart = this.dropdownModeStartPosition - this.settings.textTrigger.length;
+        newValue = currentValue.substring(0, triggerStart) + processedContent + afterCursor;
+        newCursorPos = triggerStart + processedContent.length;
+      } else {
+        newValue = beforeStart + processedContent + afterCursor;
+        newCursorPos = beforeStart.length + processedContent.length;
+      }
+    } else {
+      const beforeCursor = currentValue.substring(0, cursorPos);
+      const afterCursor = currentValue.substring(cursorPos);
+      newValue = beforeCursor + processedContent + afterCursor;
+      newCursorPos = cursorPos + processedContent.length;
+    }
+
+    this.inputManager.setInputValue(this.activeInput, newValue);
+    this.inputManager.setCursorPosition(this.activeInput, newCursorPos);
+    return true;
   }
 }
 
