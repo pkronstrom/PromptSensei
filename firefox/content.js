@@ -1161,13 +1161,19 @@ class AIPromptAutocomplete {
 
     // Handle clicks outside dropdown
     this.resources.addEventListener(document, 'click', (e) => {
-      if (this.dropdown && !this.dropdown.contains(e.target) && e.target !== this.activeInput) {
+      // Check if click is truly outside the dropdown
+      const isInsideDropdown = this.dropdown && this.dropdown.contains(e.target);
+      const isOnActiveInput = e.target === this.activeInput;
+      const isOnPromptItem = e.target.closest && e.target.closest('.ai-prompt-item');
+      
+      if (this.dropdown && !isInsideDropdown && !isOnActiveInput && !isOnPromptItem) {
         // Don't close dropdown if click is on another dropdown/modal that should take precedence
         if (!this.isPartOfOtherDropdown(e.target)) {
-          // Don't close if we're in placeholder mode (user might be clicking on placeholder inputs)
-          if (!this.isInPlaceholderMode) {
-            this.hideDropdown();
+          // Close dropdown completely when clicking outside
+          if (this.isInPlaceholderMode) {
+            this.resetPlaceholderMode();
           }
+          this.hideDropdown();
         }
       }
     });
