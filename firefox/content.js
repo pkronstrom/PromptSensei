@@ -146,7 +146,7 @@ const setupPreactComponents = () => {
     return h('div', { className: 'ai-prompt-dropdown' },
       h('div', { className: 'ai-scroll' },
         prompts.length === 0 
-          ? h('div', { className: 'ai-prompt-no-results' }, 'No prompts found')
+          ? null // Don't show "No prompts found" during transitions - use showNoPromptsMessage() instead
           : prompts.map((prompt, index) => 
               h('div', {
                 key: prompt.name + index,
@@ -1338,6 +1338,10 @@ class AIPromptAutocomplete {
   handleInput(e) {
     if (!this.settings) return;
 
+    // Ignore input events immediately after prompt insertion to prevent
+    // the inserted prompt text from being treated as filter input
+    if (this.justInsertedPrompt) return;
+
     const input = e.target;
     const value = this.inputManager.getInputValue(input);
     const cursorPos = this.inputManager.getCursorPosition(input);
@@ -1440,13 +1444,15 @@ class AIPromptAutocomplete {
   }
 
   resetDropdownMode() {
+    // Set hiding flag immediately to prevent renders during reset
+    this.isHiding = true;
     this.isInDropdownMode = false;
     this.dropdownModeType = null;
     this.dropdownModeStartPosition = -1;
     this.dropdownModeLastCursorPos = -1;
+    this.filteredPrompts = []; // Clear immediately to prevent blinking
     this.resetPlaceholderMode();
     this.hideDropdown();
-    // filteredPrompts will be cleared by hideDropdown() after fade animation
   }
 
   resetPlaceholderMode() {
@@ -1645,6 +1651,12 @@ class AIPromptAutocomplete {
   filterAndShowPromptsWithBestMatch(query) {
     const perfTimer = this.performanceMonitor.startTimer('prompt_filtering');
     
+    // Don't filter if not in dropdown mode (prevents blinking during reset)
+    if (!this.isInDropdownMode) {
+      this.performanceMonitor.endTimer(perfTimer);
+      return;
+    }
+    
     if (!this.settings?.prompts?.length) {
       this.performanceMonitor.endTimer(perfTimer);
       this.showNoPromptsMessage();
@@ -1693,6 +1705,14 @@ class AIPromptAutocomplete {
       this.filteredPrompts = scoredPrompts
         .sort((a, b) => b.score - a.score)
         .map(item => item.prompt);
+    }
+
+    // Check if filtering resulted in no matches
+    if (this.filteredPrompts.length === 0 && queryLower) {
+      // Show "no matches" message for filtered results
+      this.showNoMatchesMessage(queryLower);
+      this.performanceMonitor.endTimer(perfTimer);
+      return;
     }
 
     // Only create dropdown if it doesn't exist yet
@@ -2311,6 +2331,9 @@ class AIPromptAutocomplete {
       // If contenteditable and likely controlled by an editor (e.g., ProseMirror),
       // operate via selection + execCommand to let the editor handle DOM/state.
       if (this.activeInput.isContentEditable || this.activeInput.contentEditable === 'true') {
+        // Set flag BEFORE any DOM manipulation to prevent input events from triggering filtering
+        this.justInsertedPrompt = true;
+
         // Focus to ensure selection operations apply
         try {
           this.activeInput.focus();
@@ -2383,9 +2406,6 @@ class AIPromptAutocomplete {
           this.activeInput.dispatchEvent(inputEvent);
         } catch (eventError) {
         }
-
-        // Reset dropdown mode and flags
-        this.justInsertedPrompt = true;
         
         // Store activeInput for focus restoration before resetting
         const inputToRestoreFocus = this.activeInput;
@@ -2411,6 +2431,9 @@ class AIPromptAutocomplete {
 
       // Fallback: value-based replace for INPUT/TEXTAREA
       try {
+        // Set flag BEFORE any value manipulation to prevent input events from triggering filtering
+        this.justInsertedPrompt = true;
+
         const currentValue = this.inputManager.getInputValue(this.activeInput);
         if (typeof currentValue !== 'string') {
           return;
@@ -2446,8 +2469,6 @@ class AIPromptAutocomplete {
       } catch (valueError) {
         return;
       }
-
-      this.justInsertedPrompt = true;
       
       // Store activeInput for focus restoration before resetting
       const inputToRestoreFocus = this.activeInput;
@@ -2651,6 +2672,11 @@ class AIPromptAutocomplete {
   }
 
   showNoPromptsMessage() {
+    // Don't show message if not in dropdown mode (prevents blinking during reset)
+    if (!this.isInDropdownMode) {
+      return;
+    }
+    
     this.createDropdown();
     
     // Use Preact to render the message
@@ -2681,6 +2707,41 @@ class AIPromptAutocomplete {
     this.resources.setTimeout(() => {
       this.hideDropdown();
     }, 3000);
+  }
+
+  showNoMatchesMessage(query) {
+    // Don't show message if not in dropdown mode (prevents blinking during reset)
+    if (!this.isInDropdownMode) {
+      return;
+    }
+    
+    this.createDropdown();
+    
+    // Use Preact to render the message
+    if (window.preact && window.render && window.h) {
+      window.render(
+        window.h('div', { className: 'ai-prompt-no-results' },
+          `No prompts match "${query}"`
+        ),
+        this.dropdown
+      );
+    } else {
+      // Fallback
+      this.dropdown.innerHTML = `
+        <div class="ai-prompt-no-results">
+          No prompts match "${this.escapeHtml(query)}"
+        </div>
+      `;
+    }
+    
+    this.positionDropdown();
+    this.isDropdownVisible = true;
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 }
 
