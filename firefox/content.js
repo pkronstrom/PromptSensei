@@ -780,28 +780,7 @@ class AIPromptAutocomplete {
     this.settings = {
       hotkey: 'Ctrl+Shift+P',
       textTrigger: 'AI:',
-      prompts: [
-        {
-          name: "Code Review",
-          content: "Please review this code for:\n1. Potential bugs or issues\n2. Performance improvements\n3. Security vulnerabilities\n4. Code style and best practices\n5. Documentation needs\n\nProvide specific suggestions and examples."
-        },
-        {
-          name: "Debug Helper",
-          content: "I'm debugging this code and encountering [issue]. Please help me:\n1. Identify the root cause\n2. Suggest debugging steps\n3. Provide potential solutions\n4. Recommend tools or techniques\n\nCode: [code]"
-        },
-        {
-          name: "API Documentation",
-          content: "Create comprehensive documentation for this API endpoint:\n\nEndpoint: [endpoint]\nMethod: [method]\nParameters: [parameters]\n\nInclude:\n- Purpose and functionality\n- Request/response examples\n- Error handling\n- Authentication requirements\n- Rate limiting info"
-        },
-        {
-          name: "Email Template",
-          content: "Write a professional email template for [purpose].\n\nRecipient: [recipient]\nContext: [context]\nTone: [tone]\n\nInclude:\n- Clear subject line\n- Professional greeting\n- Main message\n- Call to action\n- Professional closing"
-        },
-        {
-          name: "Meeting Summary",
-          content: "Create a meeting summary for [meeting_topic].\n\nParticipants: [participants]\nDate: [date]\nDuration: [duration]\n\nInclude:\n- Key discussion points\n- Decisions made\n- Action items with owners\n- Next steps\n- Follow-up schedule"
-        }
-      ]
+      prompts: []
     };
     this.activeInput = null;
     this.dropdown = null;
@@ -809,6 +788,7 @@ class AIPromptAutocomplete {
     this.filteredPrompts = [];
     this.filterValue = ''; // Internal filter value
     this.isDropdownVisible = false;
+    this.isHiding = false; // Flag to prevent re-rendering during dropdown hide
     this.isInDropdownMode = false; // Unified mode for both hotkey and text trigger
     this.dropdownModeStartPosition = -1;
     this.dropdownModeType = null; // 'hotkey' or 'textTrigger'
@@ -1510,8 +1490,7 @@ class AIPromptAutocomplete {
     this.dropdownModeLastCursorPos = -1;
     this.resetPlaceholderMode();
     this.hideDropdown();
-    // Reset filter to show all prompts on next activation
-    this.filteredPrompts = [];
+    // filteredPrompts will be cleared by hideDropdown() after fade animation
   }
 
   resetPlaceholderMode() {
@@ -1822,6 +1801,13 @@ class AIPromptAutocomplete {
       
       if (this.resources?.isDestroyed) {
         console.warn('[Taltio] Cannot render - resources destroyed');
+        return;
+      }
+      
+      // Skip rendering if dropdown is in the process of being hidden
+      if (this.isHiding) {
+        console.log('[Taltio] Skipping render - dropdown is being hidden');
+        this.performanceMonitor.endTimer(perfTimer);
         return;
       }
 
@@ -2620,6 +2606,10 @@ class AIPromptAutocomplete {
   hideDropdown() {
     console.log('[Taltio] hideDropdown called');
     console.trace('[Taltio] hideDropdown call stack');
+    
+    // Set hiding flag to prevent re-rendering during hide process
+    this.isHiding = true;
+    
     if (this.dropdown) {
       // Fade out smoothly before removing
       this.dropdown.style.opacity = '0';
@@ -2629,11 +2619,17 @@ class AIPromptAutocomplete {
           this.dropdown.remove();
           this.dropdown = null;
         }
+        // Clear filtered prompts after DOM removal to prevent flashing
+        this.filteredPrompts = [];
+        this.isHiding = false; // Reset hiding flag
       }, 150); // Match CSS transition duration
+    } else {
+      // No dropdown element, just clean up immediately
+      this.filteredPrompts = [];
+      this.isHiding = false;
     }
     this.isDropdownVisible = false;
     this.selectedIndex = -1;
-    this.filteredPrompts = [];
     
     // Only restore focus if it's appropriate and won't interfere with other elements
     // Focus restoration after insertion is handled separately in insertion methods
